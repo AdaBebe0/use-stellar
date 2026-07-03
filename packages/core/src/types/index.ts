@@ -37,6 +37,7 @@ export const NETWORK_CONFIGS: Record<StellarNetwork, NetworkConfig> = {
  * Supported wallet providers.
  */
 export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet";
+export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet"
 
 /**
  * The current state of the wallet connection.
@@ -50,6 +51,14 @@ export interface WalletState {
   error: string | StellarError | null;
   walletNetwork: StellarNetwork | null; // Actual network from wallet extension
   walletName: string | null;
+  connected: boolean
+  address: string | null
+  network: StellarNetwork | null
+  wallet: WalletType | null
+  walletName: string | null
+  connecting: boolean
+  error: StellarError | null
+  walletNetwork: StellarNetwork | null // Actual network from wallet extension
 }
 
 /**
@@ -82,6 +91,7 @@ export interface AssetMetadata extends IssuedAsset {
  * Can be either a native asset or an issued asset.
  */
 export type Asset = NativeAsset | IssuedAsset;
+export type Asset = NativeAsset | IssuedAsset | "liquidity_pool_shares"
 
 /**
  * Represents a balance entry for an account.
@@ -104,6 +114,14 @@ export type Balance =
       balance: string;
       liquidityPoolId: string;
     };
+export interface Balance {
+  asset: Asset
+  balance: string
+  limit?: string
+  buying?: string
+  selling?: string
+  liquidityPoolId?: string
+}
 
 /**
  * Detailed account information from the Stellar network.
@@ -161,6 +179,21 @@ export interface SendPaymentResult {
 }
 
 /**
+ * A normalized payment record for display or processing.
+ */
+export interface NormalizedPayment {
+  id: string
+  txHash: string
+  type: string
+  from: string
+  to: string
+  amount: string
+  asset: Asset
+  direction: "incoming" | "outgoing"
+  createdAt: string
+}
+
+/**
  * Options for calling a Soroban smart contract.
  */
 export interface ContractCallOptions {
@@ -192,32 +225,20 @@ export interface StellarContextValue {
   setWallet: Dispatch<SetStateAction<WalletState>>;
 }
 
-export interface NormalizedPayment {
-  id: string;
-  txHash: string;
-  type: string;
-  from: string;
-  to: string;
-  amount: string;
-  asset: Asset;
-  direction: "incoming" | "outgoing";
-  createdAt: string;
-}
-
 export interface UsePaymentsOptions {
-  address?: string | null;
-  limit?: number;
-  order?: "asc" | "desc";
-  cursor?: string;
+  address?: string | null
+  limit?: number
+  order?: "asc" | "desc"
+  cursor?: string
 }
 
 export interface UsePaymentsReturn {
-  payments: NormalizedPayment[];
-  loading: boolean;
-  error: string | null;
-  refetch: () => void;
-  fetchNext: () => Promise<void>;
-  fetchPrev: () => Promise<void>;
-  hasNext: boolean;
-  hasPrev: boolean;
+  payments: NormalizedPayment[]
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
 }
