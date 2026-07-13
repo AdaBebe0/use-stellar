@@ -3,23 +3,26 @@ import { renderHook, act, waitFor } from "@testing-library/react"
 import { StellarProvider } from "../context/StellarProvider"
 import { usePayments } from "./usePayments"
 
+jest.mock("../utils", () => ({
+  ...jest.requireActual("../utils"),
+  getHorizonServer: jest.fn(),
+}))
+
+import { getHorizonServer } from "../utils"
+
+const mockGetHorizonServer = getHorizonServer as jest.Mock
+
 const mockCall = jest.fn()
 const mockNext = jest.fn()
 const mockPrev = jest.fn()
 
-jest.mock("../utils", () => {
-  const query = {
-    forAccount: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    cursor: jest.fn().mockReturnThis(),
-    call: mockCall,
-  }
-  return {
-    ...jest.requireActual("../utils"),
-    getHorizonServer: () => ({ payments: () => query }),
-  }
-})
+const mockQuery = {
+  forAccount: jest.fn(),
+  limit: jest.fn(),
+  order: jest.fn(),
+  cursor: jest.fn(),
+  call: mockCall,
+}
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <StellarProvider network="testnet">{children}</StellarProvider>
@@ -30,6 +33,11 @@ describe("usePayments", () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockQuery.forAccount.mockReturnValue(mockQuery)
+    mockQuery.limit.mockReturnValue(mockQuery)
+    mockQuery.order.mockReturnValue(mockQuery)
+    mockQuery.cursor.mockReturnValue(mockQuery)
+    mockGetHorizonServer.mockReturnValue({ payments: () => mockQuery })
   })
 
   it("handles empty state and returns empty array", async () => {
