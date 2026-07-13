@@ -1,6 +1,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
+  maxWorkers: 2,
   testMatch: [
     '**/*.test.ts',
     '**/*.test.tsx'
