@@ -26,6 +26,7 @@ let mockWalletState: WalletState = {
   connecting: false,
   error: null,
   walletNetwork: null,
+  walletName: null,
 }
 
 jest.mock("../context/StellarProvider", () => {
@@ -62,6 +63,7 @@ describe("useSendPayment - Network Mismatch Protection", () => {
       connecting: false,
       error: null,
       walletNetwork: null,
+      walletName: null,
     }
   })
 
@@ -74,6 +76,7 @@ describe("useSendPayment - Network Mismatch Protection", () => {
       connecting: false,
       error: null,
       walletNetwork: null,
+      walletName: null,
     }
 
     const { result } = renderHook(() => useSendPayment(), {
@@ -98,6 +101,7 @@ describe("useSendPayment - Network Mismatch Protection", () => {
       connecting: false,
       error: null,
       walletNetwork: "mainnet", // Mismatch: wallet on mainnet but provider on testnet
+      walletName: "Freighter",
     }
 
     const { result } = renderHook(() => useSendPayment(), {
@@ -122,6 +126,7 @@ describe("useSendPayment - Network Mismatch Protection", () => {
       connecting: false,
       error: null,
       walletNetwork: "testnet", // Networks match
+      walletName: "Freighter",
     }
 
     const { result } = renderHook(() => useSendPayment(), {
@@ -147,6 +152,7 @@ describe("useSendPayment - Network Mismatch Protection", () => {
       connecting: false,
       error: null,
       walletNetwork: null, // Legacy state without walletNetwork
+      walletName: "Freighter",
     }
 
     const { result } = renderHook(() => useSendPayment(), {
@@ -172,6 +178,7 @@ describe("useSendPayment - Network Mismatch Protection", () => {
       connecting: false,
       error: null,
       walletNetwork: "mainnet",
+      walletName: "Freighter",
     }
 
     const { result } = renderHook(() => useSendPayment(), {
