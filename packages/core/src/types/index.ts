@@ -33,6 +33,9 @@ export const NETWORK_CONFIGS: Record<StellarNetwork, NetworkConfig> = {
   },
 }
 
+/**
+ * Supported wallet providers.
+ */
 export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet"
 
 /**
@@ -41,12 +44,11 @@ export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet"
 export interface WalletState {
   connected: boolean
   address: string | null
-  network: StellarNetwork | null
+  network: StellarNetwork | null // Network from provider config
   wallet: WalletType | null
-  walletName: string | null
-  connecting: boolean
-  error: StellarError | null
+  error: string | StellarError | null
   walletNetwork: StellarNetwork | null // Actual network from wallet extension
+  walletName: string | null
 }
 
 /**
@@ -62,6 +64,11 @@ export interface IssuedAsset {
   issuer: string
 }
 
+export interface LiquidityPoolAsset {
+  asset: "liquidity_pool_shares"
+  liquidityPoolId: string
+}
+
 /**
  * Extended asset information with validation metadata.
  */
@@ -73,19 +80,29 @@ export interface AssetMetadata extends IssuedAsset {
 /**
  * Can be either a native asset or an issued asset.
  */
-export type Asset = NativeAsset | IssuedAsset | "liquidity_pool_shares"
+export type Asset = NativeAsset | IssuedAsset
 
 /**
  * Represents a balance entry for an account.
  */
-export interface Balance {
-  asset: Asset
-  balance: string
-  limit?: string
-  buying?: string
-  selling?: string
-  liquidityPoolId?: string
-}
+export type Balance =
+  | {
+      asset: "XLM"
+      balance: string
+    }
+  | {
+      asset: {
+        code: string
+        issuer: string
+      }
+      balance: string
+      limit: string
+    }
+  | {
+      asset: "liquidity_pool_shares"
+      balance: string
+      liquidityPoolId: string
+    }
 
 /**
  * Detailed account information from the Stellar network.

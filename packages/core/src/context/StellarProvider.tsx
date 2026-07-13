@@ -9,7 +9,6 @@ const DEFAULT_WALLET: WalletState = {
   network: null,
   wallet: null,
   walletName: null,
-  connecting: false,
   error: null,
   walletNetwork: null,
 }

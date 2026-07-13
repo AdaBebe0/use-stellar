@@ -14,7 +14,7 @@ import { createStellarError, toStellarError } from "../errors"
 import type { SendPaymentOptions, SendPaymentResult, Asset, StellarError } from "../types"
 
 export interface UseSendPaymentReturn {
-  send: (options: SendPaymentOptions) => Promise<SendPaymentResult>
+  send: (options: SendPaymentOptions) => Promise<SendPaymentResult & { error?: string }>
   loading: boolean
   error: StellarError | null
   result: SendPaymentResult | null
@@ -31,14 +31,14 @@ export interface UseSendPaymentReturn {
  * await send({ to: "G...", asset: "XLM", amount: "10" })
  */
 export function useSendPayment(): UseSendPaymentReturn {
-  const { network, wallet } = useStellarContext()
+  const { network, networkConfig, wallet } = useStellarContext()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
   const [result, setResult] = useState<SendPaymentResult | null>(null)
 
   const send = useCallback(
-    async (options: SendPaymentOptions): Promise<SendPaymentResult> => {
+    async (options: SendPaymentOptions): Promise<SendPaymentResult & { error?: string }> => {
       if (!wallet.connected || !wallet.address) {
         throw createStellarError(
           "WALLET_NOT_CONNECTED",
@@ -67,11 +67,13 @@ export function useSendPayment(): UseSendPaymentReturn {
 
       setLoading(true)
       setError(null)
+      setResult(null)
 
       try {
         const server = getHorizonServer(network)
         const sourceAcc = await server.loadAccount(wallet.address)
-        const networkPass = network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
+        const networkPassphrase =
+          networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
 
         const stellarAsset = toStellarAsset(options.asset)
         const operation = Operation.payment({
@@ -82,15 +84,14 @@ export function useSendPayment(): UseSendPaymentReturn {
 
         const builder = new TransactionBuilder(sourceAcc, {
           fee: BASE_FEE,
-          networkPassphrase: networkPass,
-        })
-          .addOperation(operation)
-          .setTimeout(30)
+          networkPassphrase,
+        }).addOperation(operation)
 
         if (options.memo) {
           builder.addMemo(Memo.text(options.memo))
         }
 
+        builder.setTimeout(30)
         const tx = builder.build()
         const xdr = tx.toXDR()
 
@@ -99,10 +100,10 @@ export function useSendPayment(): UseSendPaymentReturn {
         const signedTxXdr = await adapter.signTransaction(xdr, {
           address: wallet.address,
           network,
-          networkPassphrase: networkPass,
+          networkPassphrase,
         })
 
-        const signed = TransactionBuilder.fromXDR(signedTxXdr, networkPass)
+        const signed = TransactionBuilder.fromXDR(signedTxXdr, networkPassphrase)
         const res = await server.submitTransaction(signed)
 
         const outcome: SendPaymentResult = {
@@ -120,7 +121,7 @@ export function useSendPayment(): UseSendPaymentReturn {
         setLoading(false)
       }
     },
-    [network, wallet]
+    [network, networkConfig, wallet]
   )
 
   const reset = useCallback(() => {

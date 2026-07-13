@@ -50,7 +50,6 @@ export function useWallet(): UseWalletReturn {
           network: connection.network,
           wallet: connection.wallet,
           walletName: adapter.metadata.name,
-          connecting: false,
           error: null,
           walletNetwork: connection.network,
         })
@@ -76,7 +75,6 @@ export function useWallet(): UseWalletReturn {
       network: null,
       wallet: null,
       walletName: null,
-      connecting: false,
       error: null,
       walletNetwork: null,
     })
