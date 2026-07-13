@@ -43,10 +43,11 @@ export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet"
  */
 export interface WalletState {
   connected: boolean
+  connecting: boolean
   address: string | null
   network: StellarNetwork | null // Network from provider config
   wallet: WalletType | null
-  error: string | StellarError | null
+  error: StellarError | null
   walletNetwork: StellarNetwork | null // Actual network from wallet extension
   walletName: string | null
 }

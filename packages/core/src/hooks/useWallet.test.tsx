@@ -57,7 +57,7 @@ describe("useWallet", () => {
 
     expect(result.current.connected).toBe(false)
     expect(result.current.wallet).toBeNull()
-    expect(result.current.error).toBe("Rabet is not supported yet.")
+    expect(result.current.error?.message).toBe("Rabet is not supported yet.")
   })
 })
 
@@ -144,7 +144,7 @@ describe("useWallet - Network Sync", () => {
       })
 
       expect(result.current.connected).toBe(false)
-      expect(result.current.error).toContain("Wrong network")
+      expect(result.current.error?.message).toContain("Wrong network")
     })
   })
 
@@ -242,7 +242,7 @@ describe("useWallet - Network Sync", () => {
 
       // Should have an error since the passphrase doesn't match known networks
       expect(result.current.error).toBeTruthy()
-      expect(result.current.error).toContain("Unknown network passphrase")
+      expect(result.current.error?.message).toBe("Unknown Stellar network")
     })
   })
 
