@@ -1,28 +1,28 @@
 import React from "react"
-import { renderHook, act } from "@testing-library/react"
+import { renderHook, act, waitFor } from "@testing-library/react"
 import { StellarProvider } from "../context/StellarProvider"
 import { usePayments } from "./usePayments"
+
+jest.mock("../utils", () => ({
+  ...jest.requireActual("../utils"),
+  getHorizonServer: jest.fn(),
+}))
+
+import { getHorizonServer } from "../utils"
+
+const mockGetHorizonServer = getHorizonServer as jest.Mock
 
 const mockCall = jest.fn()
 const mockNext = jest.fn()
 const mockPrev = jest.fn()
 
-jest.mock("@stellar/stellar-sdk", () => {
-  const original = jest.requireActual("@stellar/stellar-sdk")
-  return {
-    ...original,
-    Horizon: {
-      Server: jest.fn().mockImplementation(() => ({
-        payments: jest.fn().mockReturnThis(),
-        forAccount: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        order: jest.fn().mockReturnThis(),
-        cursor: jest.fn().mockReturnThis(),
-        call: mockCall,
-      })),
-    },
-  }
-})
+const mockQuery = {
+  forAccount: jest.fn(),
+  limit: jest.fn(),
+  order: jest.fn(),
+  cursor: jest.fn(),
+  call: mockCall,
+}
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <StellarProvider network="testnet">{children}</StellarProvider>
@@ -33,6 +33,11 @@ describe("usePayments", () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockQuery.forAccount.mockReturnValue(mockQuery)
+    mockQuery.limit.mockReturnValue(mockQuery)
+    mockQuery.order.mockReturnValue(mockQuery)
+    mockQuery.cursor.mockReturnValue(mockQuery)
+    mockGetHorizonServer.mockReturnValue({ payments: () => mockQuery })
   })
 
   it("handles empty state and returns empty array", async () => {
@@ -40,11 +45,7 @@ describe("usePayments", () => {
 
     const { result } = renderHook(() => usePayments({ address }), { wrapper })
 
-    expect(result.current.loading).toBe(true)
-
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.loading).toBe(false)
     expect(result.current.payments).toEqual([])
@@ -70,9 +71,7 @@ describe("usePayments", () => {
 
     const { result } = renderHook(() => usePayments({ address }), { wrapper })
 
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.payments).toHaveLength(1)
     expect(result.current.payments[0]).toEqual({
@@ -108,9 +107,7 @@ describe("usePayments", () => {
 
     const { result } = renderHook(() => usePayments({ address }), { wrapper })
 
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.payments).toHaveLength(1)
     expect(result.current.payments[0]).toEqual({
@@ -152,9 +149,7 @@ describe("usePayments", () => {
 
     const { result } = renderHook(() => usePayments({ address }), { wrapper })
 
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.payments).toHaveLength(2)
     expect(result.current.payments[0].type).toBe("create_account")
@@ -206,9 +201,7 @@ describe("usePayments", () => {
 
     const { result } = renderHook(() => usePayments({ address, limit: 1 }), { wrapper })
 
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.payments[0].id).toBe("200")
     expect(result.current.hasNext).toBe(true)
@@ -227,12 +220,10 @@ describe("usePayments", () => {
 
     const { result } = renderHook(() => usePayments({ address }), { wrapper })
 
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.loading).toBe(false)
-    expect(result.current.error).toBe("Network Error")
+    expect(result.current.error?.code).toBe("NETWORK_ERROR")
     expect(result.current.payments).toEqual([])
   })
 })

@@ -8,12 +8,10 @@ import {
   Memo,
 } from "@stellar/stellar-sdk"
 import { useStellarContext } from "../context/StellarProvider"
-import { getHorizonServer, isNativeAsset, isBrowser } from "../utils"
 import { getHorizonServer, isNativeAsset, isIssuedAsset, isBrowser } from "../utils"
 import { getWalletAdapter } from "../wallets"
 import { createStellarError, toStellarError } from "../errors"
 import type { SendPaymentOptions, SendPaymentResult, Asset, StellarError } from "../types"
-import { createStellarError, toStellarError } from "../errors"
 
 export interface UseSendPaymentReturn {
   send: (options: SendPaymentOptions) => Promise<SendPaymentResult & { error?: string }>
@@ -67,16 +65,15 @@ export function useSendPayment(): UseSendPaymentReturn {
         )
       }
 
-      setLoading(true);
-      setError(null);
-      setResult(null);
       setLoading(true)
       setError(null)
+      setResult(null)
 
       try {
         const server = getHorizonServer(network)
         const sourceAcc = await server.loadAccount(wallet.address)
-        const networkPassphrase = networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
+        const networkPassphrase =
+          networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
 
         const stellarAsset = toStellarAsset(options.asset)
         const operation = Operation.payment({
@@ -88,8 +85,7 @@ export function useSendPayment(): UseSendPaymentReturn {
         const builder = new TransactionBuilder(sourceAcc, {
           fee: BASE_FEE,
           networkPassphrase,
-        })
-          .addOperation(operation)
+        }).addOperation(operation)
 
         if (options.memo) {
           builder.addMemo(Memo.text(options.memo))
@@ -104,45 +100,8 @@ export function useSendPayment(): UseSendPaymentReturn {
         const signedTxXdr = await adapter.signTransaction(xdr, {
           address: wallet.address,
           network,
-          networkPassphrase: networkPass,
+          networkPassphrase,
         })
-
-        // Check if Freighter is installed
-        const freighter = (window as any).freighter
-        if (!freighter) {
-          const stellarError = createStellarError(
-            "WALLET_NOT_INSTALLED",
-            "Freighter is not installed. Please install Freighter from https://www.freighter.app/"
-          )
-          setError(stellarError)
-          throw stellarError
-        }
-
-        let signedTxXdr: string
-        try {
-          const signRes = await freighter.signTransaction(tx.toXDR(), { networkPassphrase })
-          if (typeof signRes === "string") {
-            signedTxXdr = signRes
-          } else if (signRes && typeof signRes === "object") {
-            if (signRes.error) {
-              throw new Error(signRes.error.message || signRes.error)
-            }
-            signedTxXdr = signRes.signedTxXdr
-          } else {
-            throw new Error("Freighter did not return a signed transaction.")
-          }
-        } catch (signErr) {
-          const errorMsg = signErr instanceof Error ? signErr.message : String(signErr)
-          const stellarError = createStellarError("WALLET_REQUEST_REJECTED", errorMsg, { raw: signErr })
-          setError(stellarError)
-          const outcome: SendPaymentResult & { error: string } = {
-            hash: "",
-            status: "failed",
-            error: errorMsg,
-          }
-          setResult(outcome)
-          return outcome
-        }
 
         const signed = TransactionBuilder.fromXDR(signedTxXdr, networkPassphrase)
         const res = await server.submitTransaction(signed)
@@ -178,4 +137,3 @@ function toStellarAsset(asset: Asset): StellarAsset {
   if (isIssuedAsset(asset)) return new StellarAsset(asset.code, asset.issuer)
   return StellarAsset.native() // fallback for liquidity_pool_shares
 }
-

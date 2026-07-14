@@ -163,7 +163,7 @@ const txResult = await send({
               <span style={{ fontSize: 13, fontWeight: 600 }}>Payment Result</span>
               <StatusBadge status={result.status} />
             </div>
-            
+
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
               {result.hash && (
                 <>
@@ -194,7 +194,9 @@ const txResult = await send({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ color: "#aaa", fontSize: 12, fontWeight: 500, letterSpacing: "0.02em" }}>{label}</span>
+      <span style={{ color: "#aaa", fontSize: 12, fontWeight: 500, letterSpacing: "0.02em" }}>
+        {label}
+      </span>
       {children}
     </label>
   )
@@ -213,8 +215,12 @@ function StatusBadge({ status }: { status: string }) {
   const isSuccess = status === "success"
   const isFailed = status === "failed"
   const color = isSuccess ? "#4ade80" : isFailed ? "#f87171" : "#facc15"
-  const bg = isSuccess ? "rgba(74, 222, 128, 0.15)" : isFailed ? "rgba(248, 113, 113, 0.15)" : "rgba(250, 204, 21, 0.15)"
-  
+  const bg = isSuccess
+    ? "rgba(74, 222, 128, 0.15)"
+    : isFailed
+      ? "rgba(248, 113, 113, 0.15)"
+      : "rgba(250, 204, 21, 0.15)"
+
   return (
     <span
       style={{
@@ -232,10 +238,6 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </span>
   )
-}
-
-function Text({ children, color = "#e0e0e0" }: { children: string; color?: string }) {
-  return <p style={{ margin: 0, color, fontSize: 13 }}>{children}</p>
 }
 
 // Styling Constants
@@ -360,4 +362,3 @@ const stellarExpertLinkStyle: CSSProperties = {
   marginTop: 4,
   fontFamily: "monospace",
 }
-

@@ -3,7 +3,7 @@ import React from "react"
 import { StellarProvider } from "../context/StellarProvider"
 import { useTransaction } from "./useTransaction"
 import type { UseTransactionOptions, UseTransactionReturn } from "./useTransaction"
-import type { TransactionResult, TransactionStatus } from "../types"
+import type { StellarError, TransactionResult, TransactionStatus } from "../types"
 
 // Mock the entire @stellar/stellar-sdk module
 jest.mock("@stellar/stellar-sdk", () => ({
@@ -245,7 +245,7 @@ describe("useTransaction — type-level contract", () => {
     type AssertReturnShape = {
       transaction: TransactionResult | null
       loading: boolean
-      error: string | null
+      error: StellarError | null
       refetch: () => void
     }
 
@@ -302,7 +302,7 @@ describe("useTransaction — type-level contract", () => {
 
     const transaction: TransactionResult | null = ret.transaction
     const loading: boolean = ret.loading
-    const error: string | null = ret.error
+    const error: StellarError | null = ret.error
     const refetch: () => void = ret.refetch
 
     expect(transaction).toBeNull()

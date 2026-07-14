@@ -5,11 +5,11 @@ import { NETWORK_CONFIGS } from "../types"
 
 const DEFAULT_WALLET: WalletState = {
   connected: false,
+  connecting: false,
   address: null,
   network: null,
   wallet: null,
   walletName: null,
-  connecting: false,
   error: null,
   walletNetwork: null,
 }

@@ -15,7 +15,7 @@ export interface UseWalletReturn extends WalletState {
 /**
  * Manages wallet connection state and provides functions to connect and disconnect.
  *
- * @returns `{ connected, address, network, wallet, walletName, connecting, error, connect, disconnect }`
+ * @returns `{ connected, connecting, address, network, wallet, walletName, error, connect, disconnect }`
  *
  * @example
  * const { address, connect, disconnect } = useWallet()
@@ -46,11 +46,11 @@ export function useWallet(): UseWalletReturn {
 
         setWallet({
           connected: true,
+          connecting: false,
           address: connection.address,
           network: connection.network,
           wallet: connection.wallet,
           walletName: adapter.metadata.name,
-          connecting: false,
           error: null,
           walletNetwork: connection.network,
         })
@@ -72,11 +72,11 @@ export function useWallet(): UseWalletReturn {
 
     setWallet({
       connected: false,
+      connecting: false,
       address: null,
       network: null,
       wallet: null,
       walletName: null,
-      connecting: false,
       error: null,
       walletNetwork: null,
     })
