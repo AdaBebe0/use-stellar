@@ -1,6 +1,25 @@
 echo "Running pre-push checks..."
 
-echo "→ Building SDK..."
+echo "Running code-quality checks..."
+pnpm format:check
+if [ $? -ne 0 ]; then
+  echo "Formatting check failed. Push aborted."
+  exit 1
+fi
+
+pnpm lint
+if [ $? -ne 0 ]; then
+  echo "Lint check failed. Push aborted."
+  exit 1
+fi
+
+pnpm typecheck
+if [ $? -ne 0 ]; then
+  echo "Type check failed. Push aborted."
+  exit 1
+fi
+
+echo "Building SDK..."
 pnpm --filter use-stellar build
 if [ $? -ne 0 ]; then
   echo "SDK build failed. Push aborted."
