@@ -76,7 +76,7 @@ export default function PaymentsDemo() {
               borderRadius: 6,
             }}
           >
-            Error: {error}
+            Error: {error instanceof Error ? error.message : String(error)}
           </div>
         )}
 

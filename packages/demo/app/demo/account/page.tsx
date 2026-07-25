@@ -5,13 +5,13 @@ import type { CSSProperties } from "react"
 import { formatAssetCode, shortenAddress, useAccount, useWallet } from "use-stellar"
 import { DemoCard } from "../../../components/DemoCard"
 
-type AccountBalance = NonNullable<ReturnType<typeof useAccount>["data"]>["balances"][number]
+type AccountBalance = NonNullable<ReturnType<typeof useAccount>["account"]>["balances"][number]
 
 export default function AccountDemo() {
   const { address } = useWallet()
   const [input, setInput] = useState("")
   const inspectedAddress = input.trim() || address
-  const { data, loading, error, refetch } = useAccount({ address: inspectedAddress })
+  const { account: data, loading, error, refetch } = useAccount({ address: inspectedAddress })
 
   useEffect(() => {
     if (address && !input) setInput(address)
@@ -120,6 +120,16 @@ export default function AccountDemo() {
   )
 }
 function BalanceRow({ balance }: { balance: AccountBalance }) {
+  if (balance.asset === "liquidity_pool_shares") {
+    return (
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+        <span style={{ color: "#e0e0e0", fontFamily: "monospace" }}>liquidity_pool_shares</span>
+        <span style={{ color: "#7dd3fc", fontFamily: "monospace", textAlign: "right" }}>
+          {balance.balance}
+        </span>
+      </div>
+    )
+  }
   const assetLabel = formatAssetCode(balance.asset)
   const issuer = typeof balance.asset === "object" ? shortenAddress(balance.asset.issuer) : "native"
 
@@ -167,6 +177,7 @@ function Text({ children, color = "#e0e0e0" }: { children: string; color?: strin
 
 function balanceKey(balance: AccountBalance) {
   if (balance.asset === "XLM") return "XLM"
+  if (balance.asset === "liquidity_pool_shares") return `lp:${balance.liquidityPoolId}`
   return `${balance.asset.code}:${balance.asset.issuer}`
 }
 

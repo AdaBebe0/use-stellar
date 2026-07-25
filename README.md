@@ -431,7 +431,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). All contributions welcome — new hook
 - [x] `useNetwork` — network config
 - [x] `useAsset` — asset metadata
 - [x] `useSorobanContract` — read contract state
-- [ ] Albedo wallet support
+- [x] Albedo wallet support
 - [ ] Rabet wallet support
 - [ ] `useOrderBook` — DEX order book data
 - [ ] `usePaymentHistory` — paginated payment history
@@ -442,4 +442,4 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). All contributions welcome — new hook
 
 ## License
 
-MIT
+[Apache-2.0](LICENSE)
