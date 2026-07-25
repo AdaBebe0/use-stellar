@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react"
 import type { StellarError } from "../errors"
 
 export type { StellarError, StellarErrorCode } from "../errors"
+export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "../hooks/useAsset"
 
 /**
  * Represents the Stellar network environment.
