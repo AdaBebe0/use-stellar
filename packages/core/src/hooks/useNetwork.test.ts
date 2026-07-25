@@ -106,4 +106,50 @@ describe("useNetwork", () => {
       expect(result.current.isMainnet).toBe(true)
     })
   })
+
+  describe("development debug logging", () => {
+    const originalEnv = process.env.NODE_ENV
+    let debugSpy: jest.SpyInstance
+
+    beforeEach(() => {
+      process.env.NODE_ENV = "development"
+      debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalEnv
+      debugSpy.mockRestore()
+    })
+
+    it("should log debug error when StellarProvider context is missing", () => {
+      expect(() => renderHook(() => useNetwork())).toThrow("use-stellar: No StellarProvider found")
+
+      expect(debugSpy).toHaveBeenCalledWith(
+        "[useNetwork] Missing provider configuration:",
+        expect.any(Error)
+      )
+    })
+
+    it("should log debug info when network identifier is invalid or unsupported", () => {
+      const wrapper = ({ children }: { children: React.ReactNode }) => {
+        // @ts-expect-error Testing invalid network prop
+        return React.createElement(StellarProvider, { network: "custom-network", children })
+      }
+
+      renderHook(() => useNetwork(), { wrapper })
+
+      expect(debugSpy).toHaveBeenCalledWith(
+        "[useNetwork] Invalid or unsupported network identifier:",
+        "custom-network"
+      )
+    })
+
+    it("should not log debug info in production mode", () => {
+      process.env.NODE_ENV = "production"
+
+      expect(() => renderHook(() => useNetwork())).toThrow("use-stellar: No StellarProvider found")
+
+      expect(debugSpy).not.toHaveBeenCalled()
+    })
+  })
 })
