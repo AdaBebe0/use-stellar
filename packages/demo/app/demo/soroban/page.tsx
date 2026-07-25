@@ -15,12 +15,6 @@ export default function SorobanDemo() {
   const [query, setQuery] = useState({ contractId: "", method: "" })
   const { data, loading, error, refetch } = useSorobanContract(query)
   const disabled = !wallet.connected || loading || !contractId.trim() || !method.trim()
-  const wallet = useWallet()
-  const [contractId, setContractId] = useState("")
-  const [method, setMethod] = useState("")
-  const [query, setQuery] = useState({ contractId: "", method: "" })
-  const { data, loading, error, refetch } = useSorobanContract(query)
-  const disabled = !wallet.connected || loading || !contractId.trim() || !method.trim()
 
   function handleCall() {
     setQuery({ contractId: contractId.trim(), method: method.trim() })
