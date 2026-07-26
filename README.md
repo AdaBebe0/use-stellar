@@ -249,23 +249,107 @@ function Balance() {
 ### Send a payment
 
 ```tsx
-import { useSendPayment } from "use-stellar";
+import { useState } from "react";
+import { useSendPayment, useWallet } from "use-stellar";
 
-function SendButton() {
-  const { send, loading, error, result } = useSendPayment();
+export default function SendPaymentReadmeExample() {
+  const { connected, connect } = useWallet();
+  const { send, loading, error, result, reset } = useSendPayment();
 
-  async function handleSend() {
-    await send({
-      to:     "GDEST...",
-      asset:  "XLM",
-      amount: "10",
-      memo:   "thanks",
-    });
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+
+  // 1. Gate on wallet connection
+  if (!connected) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h2>useSendPayment — README Example</h2>
+        <p>Connect your wallet to try the payment flow.</p>
+        <button onClick={() => connect("freighter")}>Connect Wallet</button>
+      </div>
+    );
   }
 
-  if (result)  return <p>Sent! tx: {result.hash}</p>;
-  if (loading) return <p>Sending...</p>;
-  return <button onClick={handleSend}>Send 10 XLM</button>;
+  // 2. Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    reset(); // Clear previous error / result
+
+    try {
+      const outcome = await send({
+        to,
+        asset: "XLM",        // Required — "XLM" or { code: "USDC", issuer: "G..." }
+        amount,               // Required — must be a string, e.g. "10"
+        memo: "test payment", // Optional
+      });
+      console.log("Transaction hash:", outcome.hash);
+    } catch (err) {
+      // Error is also available via the `error` return value
+      console.error("Payment failed:", err);
+    }
+  };
+
+  return (
+    <div style={{ padding: 24, maxWidth: 480 }}>
+      <h2>useSendPayment — README Example</h2>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Destination address
+            <br />
+            <input
+              placeholder="G..."
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              required
+              style={{ width: "100%", padding: 8, marginTop: 4 }}
+            />
+          </label>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Amount (XLM)
+            <br />
+            <input
+              type="number"
+              placeholder="10"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              min="0"
+              step="0.0000001"
+              required
+              style={{ width: "100%", padding: 8, marginTop: 4 }}
+            />
+          </label>
+        </div>
+
+        {/* 3. Disable button and show loading state */}
+        <button type="submit" disabled={loading} style={{ padding: "8px 16px" }}>
+          {loading ? "Waiting for signature..." : "Send XLM"}
+        </button>
+      </form>
+
+      {/* 4. Handle success */}
+      {result?.status === "success" && (
+        <p style={{ color: "green", marginTop: 12 }}>
+          ✅ Success! Hash: <code>{result.hash}</code>
+        </p>
+      )}
+
+      {/* 5. Handle errors with specific error codes */}
+      {error && (
+        <div style={{ color: "red", marginTop: 12 }}>
+          <p>❌ {error.message}</p>
+          {error.code === "WALLET_NOT_CONNECTED" && (
+            <p>Please connect your wallet first.</p>
+          )}
+          {error.code === "INSUFFICIENT_BALANCE" && (
+            <p>You don't have enough XLM to complete this payment.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 ```
 
