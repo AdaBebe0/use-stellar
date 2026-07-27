@@ -251,21 +251,46 @@ function Balance() {
 ```tsx
 import { useSendPayment } from "use-stellar";
 
-function SendButton() {
+export function SendPaymentExample() {
   const { send, loading, error, result } = useSendPayment();
 
-  async function handleSend() {
-    await send({
-      to:     "GDEST...",
-      asset:  "XLM",
-      amount: "10",
-      memo:   "thanks",
-    });
-  }
+  const handleSend = async () => {
+    try {
+      // Triggering the payment action with all required/common configuration
+      await send({
+        to: "GAIH3ULLFQ4DGSECF2AR555KZ4KNDGEKN4AFI4SU2M7B43MGK3QJZNSR",
+        asset: "XLM",
+        amount: "1.5",
+        memo: "Sample payment",
+      });
+    } catch (err) {
+      // Errors can be caught here, or read directly from the `error` state property.
+      console.error("Payment failed:", err);
+    }
+  };
 
-  if (result)  return <p>Sent! tx: {result.hash}</p>;
-  if (loading) return <p>Sending...</p>;
-  return <button onClick={handleSend}>Send 10 XLM</button>;
+  return (
+    <div>
+      {/* Triggering payment action & handling loading state */}
+      <button onClick={handleSend} disabled={loading}>
+        {loading ? "Sending..." : "Send 1.5 XLM"}
+      </button>
+
+      {/* Handling success response */}
+      {result?.status === "success" && (
+        <p style={{ color: "green" }}>
+          Success! Transaction Hash: <code>{result.hash}</code>
+        </p>
+      )}
+
+      {/* Handling errors/failures */}
+      {error && (
+        <p style={{ color: "red" }}>
+          Payment failed: {error.message}
+        </p>
+      )}
+    </div>
+  );
 }
 ```
 
