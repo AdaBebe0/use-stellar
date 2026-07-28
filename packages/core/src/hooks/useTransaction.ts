@@ -71,6 +71,7 @@ export function useTransaction({
       if (is404) {
         setTransaction({ hash: hash!, status: watch ? "pending" : "not_found" })
       } else {
+        setTransaction(null)
         setError(toStellarError(err))
       }
     } finally {

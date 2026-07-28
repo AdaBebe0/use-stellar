@@ -68,6 +68,7 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
       setAccount(info)
     } catch (err) {
       if (fetchId !== requestRef.current) return
+      setAccount(null)
       setError(toStellarError(err))
     } finally {
       if (fetchId === requestRef.current) {
