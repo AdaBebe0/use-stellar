@@ -93,7 +93,10 @@ export function useAddTrustline(): UseAddTrustlineReturn {
           .build()
 
         const adapter = getWalletAdapter(wallet.wallet)
-        const signedTxXdr = await adapter.signTransaction(tx.toXDR(), { network })
+        const signedTxXdr = await adapter.signTransaction(tx.toXDR(), {
+          network,
+          networkPassphrase,
+        })
         const signed = TransactionBuilder.fromXDR(signedTxXdr, networkPassphrase)
         const res = await server.submitTransaction(signed)
 

@@ -179,6 +179,7 @@ export interface UseAddTrustlineReturn {
   result: TransactionResult | null
   reset: () => void
 }
+
 /**
  * A normalized payment record for display or processing.
  */

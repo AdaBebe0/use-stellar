@@ -12,7 +12,6 @@ export type { UseAccountOptions, UseAccountReturn } from "./hooks/useAccount"
 export { useSendPayment } from "./hooks/useSendPayment"
 export type { UseSendPaymentReturn } from "./hooks/useSendPayment"
 export { useAddTrustline } from "./hooks/useAddTrustline"
-export type { UseAddTrustlineReturn } from "./hooks/useAddTrustline"
 export { useTransaction } from "./hooks/useTransaction"
 export type { UseTransactionOptions, UseTransactionReturn } from "./hooks/useTransaction"
 export { useNetwork } from "./hooks/useNetwork"
@@ -75,6 +74,7 @@ export type {
   TransactionStatus,
   SendPaymentOptions,
   SendPaymentResult,
+  UseAddTrustlineReturn,
   AddTrustlineOptions,
   NormalizedPayment,
   ContractCallOptions,
