@@ -1,18 +1,53 @@
 "use client"
 import { useWallet, shortenAddress } from "use-stellar"
+import type { CSSProperties } from "react"
 import { DemoCard } from "../../../components/DemoCard"
 
 export default function WalletDemo() {
-  const { connect, disconnect, connected, address, connecting, error, network } = useWallet()
+  const {
+    connect,
+    disconnect,
+    connected,
+    address,
+    connecting,
+    error,
+    network,
+    wallet,
+    walletNetwork,
+    refreshWalletNetwork,
+    isNetworkMismatch,
+  } = useWallet()
 
   return (
     <DemoCard
       hook="useWallet"
-      description="Connect and disconnect a Stellar wallet. Currently supports Freighter — more wallets tracked as GitHub issues."
-      code={`const { connect, disconnect, connected, address } = useWallet()
+      description="Connect and disconnect a Stellar wallet. Currently supports Freighter, Albedo, and LOBSTR."
+      code={`const { 
+  connect, 
+  disconnect, 
+  connected, 
+  address,
+  walletNetwork,
+  refreshWalletNetwork,
+  isNetworkMismatch
+} = useWallet()
 
-// Connect Freighter
+// Connect Freighter (browser extension)
 await connect("freighter")
+
+// Connect Albedo (web popup — no extension needed)
+await connect("albedo")
+
+// Connect LOBSTR
+await connect("lobstr")
+
+// Refresh wallet network state
+await refreshWalletNetwork()
+
+// Check for mismatch
+if (isNetworkMismatch) {
+  console.warn("Network mismatch detected!")
+}
 
 // Disconnect
 disconnect()`}
@@ -21,22 +56,49 @@ disconnect()`}
         {connected ? (
           <>
             <Row label="Status" value="Connected ✓" color="#4ade80" />
+            <Row label="Wallet" value={wallet ?? ""} />
             <Row label="Address" value={shortenAddress(address ?? "")} />
-            <Row label="Network" value={network ?? ""} />
-            <button onClick={disconnect} style={btnStyle("#c00")}>
-              Disconnect
-            </button>
+            <Row label="Provider Network" value={network ?? ""} color="#60a5fa" />
+            <Row
+              label="Wallet Network"
+              value={walletNetwork ?? "unknown"}
+              color={isNetworkMismatch ? "#f87171" : "#4ade80"}
+            />
+            {isNetworkMismatch && <Row label="Warning" value="Network mismatch!" color="#f87171" />}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button onClick={refreshWalletNetwork} style={btnStyle("#2563eb")}>
+                Refresh Network
+              </button>
+              <button onClick={disconnect} style={btnStyle("#c00")}>
+                Disconnect
+              </button>
+            </div>
           </>
         ) : (
           <>
             <Row label="Status" value="Not connected" color="#f87171" />
-            {error && <Row label="Error" value={error} color="#f87171" />}
+            <Row label="Provider Network" value={network ?? ""} color="#60a5fa" />
+            {error && <Row label="Error" value={error.message} color="#f87171" />}
             <button
               onClick={() => connect("freighter")}
               disabled={connecting}
               style={btnStyle("#1d4ed8")}
             >
               {connecting ? "Connecting..." : "Connect Freighter"}
+            </button>
+            <button
+              onClick={() => connect("albedo")}
+              disabled={connecting}
+              style={btnStyle("#7c3aed")}
+            >
+              {connecting ? "Connecting..." : "Connect Albedo"}
+            </button>
+            <button
+              onClick={() => connect("lobstr")}
+              disabled={connecting}
+              style={btnStyle("#7c3aed")}
+            >
+              {connecting ? "Connecting..." : "Connect LOBSTR"}
             </button>
           </>
         )}
@@ -62,7 +124,7 @@ function Row({
   )
 }
 
-function btnStyle(bg: string): React.CSSProperties {
+function btnStyle(bg: string): CSSProperties {
   return {
     padding: "10px 20px",
     background: bg,

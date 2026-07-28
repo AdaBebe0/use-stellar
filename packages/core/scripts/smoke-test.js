@@ -93,10 +93,11 @@ console.log('CommonJS require test passed successfully!');
 
   // 7. Write TypeScript validation test file
   const tsTest = `
-import { isValidStellarAddress, useWallet } from 'use-stellar';
+import { isValidStellarAddress, useWallet, NormalizedPayment, AssetInfo } from 'use-stellar';
 
 const isValid: boolean = isValidStellarAddress('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOACCWN');
-console.log('TypeScript import and types resolution OK. Address valid:', isValid);
+const sampleAsset: AssetInfo | null = null;
+console.log('TypeScript import and types resolution OK. Address valid:', isValid, sampleAsset);
 `;
   fs.writeFileSync(path.join(tempDir, 'test-ts.ts'), tsTest);
 

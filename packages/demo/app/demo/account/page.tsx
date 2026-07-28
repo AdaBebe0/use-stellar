@@ -11,7 +11,7 @@ export default function AccountDemo() {
   const { address } = useWallet()
   const [input, setInput] = useState("")
   const inspectedAddress = input.trim() || address
-  const { account, loading, error, refetch } = useAccount({ address: inspectedAddress })
+  const { account: data, loading, error, refetch } = useAccount({ address: inspectedAddress })
 
   useEffect(() => {
     if (address && !input) setInput(address)
@@ -21,18 +21,20 @@ export default function AccountDemo() {
     <DemoCard
       hook="useAccount"
       description="Inspect a Stellar testnet account by address, including balances, thresholds, and signers."
-      code={`const { account, loading, error, refetch } = useAccount({
+      code={`const { data, loading, error, refetch } = useAccount({
   address: "G...",
 })`}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <label style={labelStyle}>Account address</label>
+
         <input
           value={input}
-          onChange={event => setInput(event.target.value)}
+          onChange={e => setInput(e.target.value)}
           placeholder="Paste a G... address"
           style={inputStyle}
         />
+
         <button
           onClick={refetch}
           disabled={!inspectedAddress || loading}
@@ -44,27 +46,28 @@ export default function AccountDemo() {
         {!inspectedAddress && (
           <Text color="#facc15">Connect a wallet or paste any testnet G... address.</Text>
         )}
-        {error && <Text color="#f87171">{error}</Text>}
 
-        {account && (
+        {error && <Text color="#f87171">{error.message}</Text>}
+
+        {data && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <section style={sectionStyle}>
-              <Row label="Address" value={shortenAddress(account.address)} />
-              <Row label="Sequence" value={account.sequence} />
-              <Row label="Subentries" value={String(account.subentryCount)} />
+              <Row label="Address" value={shortenAddress(data.address)} />
+              <Row label="Sequence" value={data.sequence} />
+              <Row label="Subentries" value={String(data.subentryCount)} />
             </section>
 
             <section style={sectionStyle}>
               <Heading>Thresholds</Heading>
-              <Row label="Low" value={String(account.thresholds.lowThreshold)} />
-              <Row label="Medium" value={String(account.thresholds.medThreshold)} />
-              <Row label="High" value={String(account.thresholds.highThreshold)} />
+              <Row label="Low" value={String(data.thresholds.lowThreshold)} />
+              <Row label="Medium" value={String(data.thresholds.medThreshold)} />
+              <Row label="High" value={String(data.thresholds.highThreshold)} />
             </section>
 
             <section style={sectionStyle}>
               <Heading>Balances</Heading>
-              {account.balances.length > 0 ? (
-                account.balances.map(balance => (
+              {data.balances.length > 0 ? (
+                data.balances.map(balance => (
                   <BalanceRow key={balanceKey(balance)} balance={balance} />
                 ))
               ) : (
@@ -74,8 +77,8 @@ export default function AccountDemo() {
 
             <section style={sectionStyle}>
               <Heading>Signers</Heading>
-              {account.signers.length > 0 ? (
-                account.signers.map(signer => (
+              {data.signers.length > 0 ? (
+                data.signers.map(signer => (
                   <div
                     key={`${signer.key}:${signer.type}`}
                     style={{
@@ -85,11 +88,23 @@ export default function AccountDemo() {
                       fontSize: 13,
                     }}
                   >
-                    <span style={{ color: "#e0e0e0", fontFamily: "monospace" }}>
+                    <span
+                      style={{
+                        color: "#e0e0e0",
+                        fontFamily: "monospace",
+                      }}
+                    >
                       {shortenAddress(signer.key)}
                     </span>
+
                     <span style={{ color: "#666" }}>{signer.type}</span>
-                    <span style={{ color: "#4ade80", fontFamily: "monospace" }}>
+
+                    <span
+                      style={{
+                        color: "#4ade80",
+                        fontFamily: "monospace",
+                      }}
+                    >
                       {signer.weight}
                     </span>
                   </div>
@@ -104,8 +119,17 @@ export default function AccountDemo() {
     </DemoCard>
   )
 }
-
 function BalanceRow({ balance }: { balance: AccountBalance }) {
+  if (balance.asset === "liquidity_pool_shares") {
+    return (
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+        <span style={{ color: "#e0e0e0", fontFamily: "monospace" }}>liquidity_pool_shares</span>
+        <span style={{ color: "#7dd3fc", fontFamily: "monospace", textAlign: "right" }}>
+          {balance.balance}
+        </span>
+      </div>
+    )
+  }
   const assetLabel = formatAssetCode(balance.asset)
   const issuer = typeof balance.asset === "object" ? shortenAddress(balance.asset.issuer) : "native"
 
@@ -153,10 +177,11 @@ function Text({ children, color = "#e0e0e0" }: { children: string; color?: strin
 
 function balanceKey(balance: AccountBalance) {
   if (balance.asset === "XLM") return "XLM"
+  if (balance.asset === "liquidity_pool_shares") return `lp:${balance.liquidityPoolId}`
   return `${balance.asset.code}:${balance.asset.issuer}`
 }
 
-const labelStyle: CSSProperties = { color: "#666", fontSize: 13 }
+const labelStyle: CSSProperties = { color: "#312b2b", fontSize: 13 }
 
 const sectionStyle: CSSProperties = {
   display: "flex",

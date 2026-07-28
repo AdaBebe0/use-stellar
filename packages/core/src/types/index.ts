@@ -1,4 +1,8 @@
 import type { Dispatch, SetStateAction } from "react"
+import type { StellarError } from "../errors"
+
+export type { StellarError, StellarErrorCode } from "../errors"
+export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "../hooks/useAsset"
 
 /**
  * Represents the Stellar network environment.
@@ -51,34 +55,20 @@ export const NETWORK_CONFIGS: Record<StellarNetwork, NetworkConfig> = {
 /**
  * Supported wallet providers.
  */
-export type WalletType = "freighter" | "albedo" | "rabet"
-
-export type StellarErrorCode =
-  | "ACCOUNT_NOT_FOUND"
-  | "INSUFFICIENT_BALANCE"
-  | "NO_TRUSTLINE"
-  | "TRANSACTION_REJECTED"
-  | "WALLET_NOT_INSTALLED"
-  | "WALLET_NOT_CONNECTED"
-  | "NETWORK_ERROR"
-  | "UNKNOWN"
-
-export interface StellarError {
-  code: StellarErrorCode
-  message: string
-  raw?: unknown
-}
+export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet"
 
 /**
  * The current state of the wallet connection.
  */
 export interface WalletState {
   connected: boolean
-  address: string | null
-  network: StellarNetwork | null
-  wallet: WalletType | null
   connecting: boolean
-  error: string | null
+  address: string | null
+  network: StellarNetwork | null // Network from provider config
+  wallet: WalletType | null
+  error: StellarError | null
+  walletNetwork: StellarNetwork | null // Actual network from wallet extension
+  walletName: string | null
 }
 
 /**
@@ -97,6 +87,14 @@ export interface IssuedAsset {
 export interface LiquidityPoolAsset {
   asset: "liquidity_pool_shares"
   liquidityPoolId: string
+}
+
+/**
+ * Extended asset information with validation metadata.
+ */
+export interface AssetMetadata extends IssuedAsset {
+  verified: boolean
+  timestamp: number
 }
 
 /**
@@ -182,6 +180,21 @@ export interface SendPaymentResult {
 }
 
 /**
+ * A normalized payment record for display or processing.
+ */
+export interface NormalizedPayment {
+  id: string
+  txHash: string
+  type: string
+  from: string
+  to: string
+  amount: string
+  asset: Asset
+  direction: "incoming" | "outgoing"
+  createdAt: string
+}
+
+/**
  * Options for calling a Soroban smart contract.
  */
 export interface ContractCallOptions {
@@ -211,4 +224,22 @@ export interface StellarContextValue {
   networkConfig: NetworkConfig
   wallet: WalletState
   setWallet: Dispatch<SetStateAction<WalletState>>
+}
+
+export interface UsePaymentsOptions {
+  address?: string | null
+  limit?: number
+  order?: "asc" | "desc"
+  cursor?: string
+}
+
+export interface UsePaymentsReturn {
+  payments: NormalizedPayment[]
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
 }

@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@albedo-link/intent':
+        specifier: ^0.13.0
+        version: 0.13.0
     devDependencies:
       '@types/react':
         specifier: ^18.2.0
@@ -35,6 +39,12 @@ importers:
 
   packages/core:
     dependencies:
+      '@albedo-link/intent':
+        specifier: ^0.13.0
+        version: 0.13.0
+      '@lobstrco/signer-extension-api':
+        specifier: 2.0.0
+        version: 2.0.0
       '@stellar/freighter-api':
         specifier: 6.0.1
         version: 6.0.1
@@ -120,6 +130,9 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@albedo-link/intent@0.13.0':
+    resolution: {integrity: sha512-A8CBXqGQEBMXhwxNXj5inC6HLjyx5Do7jW99NOFeecYd1nPUq8gfM0tvoNoR8H8JQ11aTl9tyQBuu/+l3xeBnQ==}
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -723,6 +736,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@lobstrco/signer-extension-api@2.0.0':
+    resolution: {integrity: sha512-jwlVyzMFF296iaNgMWn1lu+EU6BeUD4mgPurEsy8EygYNCrjA8igLpsDlXhfvXhst9tX5w4wRuTDX+FZtpfCug==}
+
   '@next/env@14.2.35':
     resolution: {integrity: sha512-DuhvCtj4t9Gwrx80dmz2F4t/zKQ4ktN8WrMwOuVzkJfBilwAwGr6v16M5eI8yCuZ63H9TTuEU09Iu2HqkzFPVQ==}
 
@@ -968,6 +984,7 @@ packages:
 
   '@stellar/stellar-base@12.1.1':
     resolution: {integrity: sha512-gOBSOFDepihslcInlqnxKZdIW9dMUO1tpOm3AtJR33K2OvpXG6SaVHCzAmCFArcCqI9zXTEiSoh70T48TmiHJA==}
+    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   '@stellar/stellar-sdk@12.3.0':
     resolution: {integrity: sha512-F2DYFop/M5ffXF0lvV5Ezjk+VWNKg0QDX8gNhwehVU3y5LYA3WAY6VcCarMGPaG9Wdgoeh1IXXzOautpqpsltw==}
@@ -3159,6 +3176,8 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
+  '@albedo-link/intent@0.13.0': {}
+
   '@babel/code-frame@7.29.7':
     dependencies:
       '@babel/helper-validator-identifier': 7.29.7
@@ -3731,6 +3750,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@lobstrco/signer-extension-api@2.0.0': {}
 
   '@next/env@14.2.35': {}
 

@@ -1,9 +1,5 @@
 import * as React from "react";
-import {
-  createContext,
-  useContext,
-  useState,
-} from "react";
+import { createContext, useContext, useState } from "react";
 import type {
   CustomNetworkConfig,
   NetworkConfig,
@@ -12,22 +8,34 @@ import type {
   WalletState,
 } from "../types";
 import { NETWORK_CONFIGS } from "../types";
-import * as React from "react"
-import { createContext, useContext, useState, type ReactNode } from "react"
-import type { StellarContextValue, StellarNetwork, WalletState } from "../types"
-import { NETWORK_CONFIGS } from "../types"
 
-// ── Default wallet state ───────────────────────────────────────────────────
+/**
+ * The default initial state for a wallet connection in the Stellar context.
+ *
+ * - `connected`: false (no wallet has established a connection yet)
+ * - `connecting`: false (no active connection request is in progress)
+ * - `address`: null (no public key address is available)
+ * - `network`: null (no context network associated with the wallet yet)
+ * - `wallet`: null (no wallet provider selected)
+ * - `walletName`: null (no friendly name for the wallet provider)
+ * - `error`: null (no connection-related errors have occurred)
+ * - `walletNetwork`: null (no network detected from the wallet browser extension itself)
+ */
 const DEFAULT_WALLET: WalletState = {
   connected: false,
+  connecting: false,
   address: null,
   network: null,
   wallet: null,
-  connecting: false,
+  walletName: null,
   error: null,
+  walletNetwork: null,
 }
 
-// ── Context ────────────────────────────────────────────────────────────────
+/**
+ * React Context object that holds the Stellar context value or null.
+ * Primarily consumed via the `useStellarContext` helper.
+ */
 const StellarContext = createContext<StellarContextValue | null>(null)
 
 // ── Validation ─────────────────────────────────────────────────────────────
@@ -71,9 +79,20 @@ function resolveNetworkConfig(
 }
 
 // ── Provider ───────────────────────────────────────────────────────────────
+/**
+ * Props accepted by the `StellarProvider` component.
+ */
 export interface StellarProviderProps {
-  /** The Stellar network to connect to. Defaults to `"testnet"`. */
-  network?:       StellarNetwork;
+  /**
+   * The Stellar network environment.
+   *
+   * - **Optional**: If omitted or invalid, it defaults to `"testnet"`.
+   * - **Values**: `"testnet"` (pre-configured to SDF testnet Horizon/Soroban RPC endpoints)
+   *             or `"mainnet"` (pre-configured to SDF mainnet Horizon/Soroban RPC endpoints).
+   * - **Impact**: Configures Horizon and Soroban RPC URL endpoints via `NETWORK_CONFIGS` for
+   *             all downstream hooks. Determines where transactions are queried and submitted.
+   */
+  network?: StellarNetwork;
   /**
    * Optional override for Horizon and Soroban RPC endpoints.
    * When omitted, the built-in SDF public endpoints are used.
@@ -91,45 +110,23 @@ export interface StellarProviderProps {
    * />
    */
   networkConfig?: CustomNetworkConfig;
-  children:       React.ReactNode;
+  /**
+   * The React component tree to be wrapped by the provider.
+   *
+   * - **Required**: Must contain React components that will consume the Stellar context.
+   * - **Omission**: If omitted, it will cause build-time TypeScript errors or render an empty provider.
+   */
+  children: React.ReactNode;
 }
 
-export function StellarProvider({
-  network       = "testnet",
-  networkConfig: networkConfigOverride,
-  children,
-}: StellarProviderProps) {
-  // Resolve once at render time — throws immediately on bad config so
-  // developers see the error in the console/overlay rather than silently
-  // getting undefined URLs at request time.
-  const resolvedNetworkConfig = resolveNetworkConfig(network, networkConfigOverride);
-
-  const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET);
-  network?: StellarNetwork
-  children: ReactNode
-}
-
-export function StellarProvider({ network = "testnet", children }: StellarProviderProps) {
-  const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET)
-
-  const value: StellarContextValue = {
-    network,
-    networkConfig: resolvedNetworkConfig,
-    wallet,
-    setWallet,
-  }
-
-  return <StellarContext.Provider value={value}>{children}</StellarContext.Provider>
-}
-
-// ── Hook to consume context ────────────────────────────────────────────────
-export function useStellarContext(): StellarContextValue {
-  const ctx = useContext(StellarContext)
-  if (!ctx) {
-    throw new Error(
-      "use-stellar: No StellarProvider found. " +
-        "Wrap your app in <StellarProvider> before using any use-stellar hooks."
-    )
-  }
-  return ctx
-}
+/**
+ * StellarProvider wraps your React application to manage the active Stellar network configuration
+ * and wallet connection states. It serves as the single source of truth for the SDK/wallet contexts.
+ *
+ * ### Lifecycle and Resource Management:
+ * - **On Mount**: Initializes the internal `wallet` state with `DEFAULT_WALLET`. It does not make
+ *   any network requests, open WebSocket connections, setup timers, or add window event listeners
+ *   upon initial mounting. This makes the provider lightweight, fast to mount, and fully server-side
+ *   rendering (SSR) safe.
+ * - **At Runtime**:
+ *   - The `network`

@@ -156,7 +156,7 @@ describe("useAccount", () => {
       })
 
       expect(result.current.account).toBe(null)
-      expect(result.current.error).toBe("Request failed with status code 404")
+      expect(result.current.error?.code).toBe("ACCOUNT_NOT_FOUND")
     })
 
     it("should handle network errors", async () => {
@@ -170,7 +170,7 @@ describe("useAccount", () => {
       })
 
       expect(result.current.account).toBe(null)
-      expect(result.current.error).toBe("Network Error")
+      expect(result.current.error?.code).toBe("NETWORK_ERROR")
     })
   })
 
@@ -178,18 +178,15 @@ describe("useAccount", () => {
     it("should transition from loading to success correctly", async () => {
       const { result } = renderHook(() => useAccount({ address: TEST_ADDRESS }), { wrapper })
 
-      // Initial loading state
       expect(result.current.loading).toBe(true)
       expect(result.current.account).toBe(null)
       expect(result.current.error).toBe(null)
 
-      // Wait for completion
       await waitFor(() => {
         expect(mockServer.loadAccount).toHaveBeenCalled()
         expect(result.current.loading).toBe(false)
       })
 
-      // Success state
       expect(result.current.loading).toBe(false)
       expect(result.current.account).toBeTruthy()
       expect(result.current.error).toBe(null)
@@ -200,18 +197,15 @@ describe("useAccount", () => {
 
       const { result } = renderHook(() => useAccount({ address: TEST_ADDRESS }), { wrapper })
 
-      // Initial loading state
       expect(result.current.loading).toBe(true)
       expect(result.current.account).toBe(null)
       expect(result.current.error).toBe(null)
 
-      // Wait for completion
       await waitFor(() => {
         expect(mockServer.loadAccount).toHaveBeenCalled()
         expect(result.current.loading).toBe(false)
       })
 
-      // Error state
       expect(result.current.loading).toBe(false)
       expect(result.current.account).toBe(null)
       expect(result.current.error).toBeTruthy()
@@ -227,14 +221,11 @@ describe("useAccount", () => {
         expect(result.current.loading).toBe(false)
       })
 
-      // Verify initial success
       expect(result.current.account).toBeTruthy()
       expect(result.current.error).toBe(null)
 
-      // Mock an error for refetch
       mockServer.loadAccount.mockRejectedValue(new Error("Network Error"))
 
-      // Call refetch
       act(() => {
         result.current.refetch()
       })
@@ -245,7 +236,68 @@ describe("useAccount", () => {
       })
 
       expect(result.current.account?.sequence).toBe("1234567890123456")
-      expect(result.current.error).toBe("Network Error")
+      expect(result.current.error?.code).toBe("NETWORK_ERROR")
+    })
+  })
+
+  describe("stale responses and unmounting", () => {
+    it("should not set state if unmounted before fetch resolves", async () => {
+      let resolveFetch: (value: unknown) => void = () => {}
+      const promise = new Promise(resolve => {
+        resolveFetch = resolve
+      })
+      mockServer.loadAccount.mockReturnValue(promise)
+
+      const { result, unmount } = renderHook(() => useAccount({ address: TEST_ADDRESS }), {
+        wrapper,
+      })
+
+      expect(result.current.loading).toBe(true)
+
+      unmount()
+
+      await act(async () => {
+        resolveFetch(mockAccountData)
+      })
+    })
+
+    it("should not overwrite newer results with older stale responses", async () => {
+      let resolveFirst: (value: unknown) => void = () => {}
+      let resolveSecond: (value: unknown) => void = () => {}
+
+      const promise1 = new Promise(resolve => {
+        resolveFirst = resolve
+      })
+      const promise2 = new Promise(resolve => {
+        resolveSecond = resolve
+      })
+
+      mockServer.loadAccount.mockReturnValueOnce(promise1).mockReturnValueOnce(promise2)
+
+      const { result, rerender } = renderHook(({ address }) => useAccount({ address }), {
+        initialProps: { address: TEST_ADDRESS },
+        wrapper,
+      })
+
+      expect(result.current.loading).toBe(true)
+
+      const NEW_ADDRESS = "GBAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOACCWN"
+      const secondMockData = { ...mockAccountData, id: NEW_ADDRESS }
+
+      rerender({ address: NEW_ADDRESS })
+
+      await act(async () => {
+        resolveSecond(secondMockData)
+      })
+
+      expect(result.current.account?.address).toBe(NEW_ADDRESS)
+      expect(result.current.loading).toBe(false)
+
+      await act(async () => {
+        resolveFirst(mockAccountData)
+      })
+
+      expect(result.current.account?.address).toBe(NEW_ADDRESS)
     })
   })
 })

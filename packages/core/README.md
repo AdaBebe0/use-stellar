@@ -45,6 +45,7 @@ function PayButton() {
   - [useSendPayment](#usesendpayment)
   - [useTransaction](#usetransaction)
   - [useNetwork](#usenetwork)
+  - [useFriendbot](#usefriendbot)
   - [useAsset](#useasset)
   - [useSorobanContract](#usesorobancontract)
 - [TypeScript](#typescript)
@@ -648,44 +649,103 @@ await send({
 import { useState } from "react";
 import { useSendPayment, useWallet } from "use-stellar";
 
-export function SendForm() {
-  const { connected }                        = useWallet();
+export default function SendPaymentReadmeExample() {
+  const { connected, connect } = useWallet();
   const { send, loading, error, result, reset } = useSendPayment();
 
-  const [to,     setTo]     = useState("");
+  const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
 
-  if (!connected) return <p>Connect your wallet first.</p>;
+  // 1. Gate on wallet connection
+  if (!connected) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h2>useSendPayment — README Example</h2>
+        <p>Connect your wallet to try the payment flow.</p>
+        <button onClick={() => connect("freighter")}>Connect Wallet</button>
+      </div>
+    );
+  }
+
+  // 2. Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    reset(); // Clear previous error / result
+
+    try {
+      const outcome = await send({
+        to,
+        asset: "XLM",        // Required — "XLM" or { code: "USDC", issuer: "G..." }
+        amount,               // Required — must be a string, e.g. "10"
+        memo: "test payment", // Optional
+      });
+      console.log("Transaction hash:", outcome.hash);
+    } catch (err) {
+      // Error is also available via the `error` return value
+      console.error("Payment failed:", err);
+    }
+  };
 
   return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        reset();
-        await send({ to, asset: "XLM", amount });
-      }}
-    >
-      <input
-        placeholder="Destination address (G...)"
-        value={to}
-        onChange={(e) => setTo(e.target.value)}
-        required
-      />
-      <input
-        type="number"
-        placeholder="Amount"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        min="0"
-        step="0.0000001"
-        required
-      />
-      <button type="submit" disabled={loading}>
-        {loading ? "Sending..." : "Send XLM"}
-      </button>
-      {error  && <p style={{ color: "red" }}>{error}</p>}
-      {result && <p style={{ color: "green" }}>Transaction confirmed: {result.hash}</p>}
-    </form>
+    <div style={{ padding: 24, maxWidth: 480 }}>
+      <h2>useSendPayment — README Example</h2>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Destination address
+            <br />
+            <input
+              placeholder="G..."
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              required
+              style={{ width: "100%", padding: 8, marginTop: 4 }}
+            />
+          </label>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Amount (XLM)
+            <br />
+            <input
+              type="number"
+              placeholder="10"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              min="0"
+              step="0.0000001"
+              required
+              style={{ width: "100%", padding: 8, marginTop: 4 }}
+            />
+          </label>
+        </div>
+
+        {/* 3. Disable button and show loading state */}
+        <button type="submit" disabled={loading} style={{ padding: "8px 16px" }}>
+          {loading ? "Waiting for signature..." : "Send XLM"}
+        </button>
+      </form>
+
+      {/* 4. Handle success */}
+      {result?.status === "success" && (
+        <p style={{ color: "green", marginTop: 12 }}>
+          ✅ Success! Hash: <code>{result.hash}</code>
+        </p>
+      )}
+
+      {/* 5. Handle errors with specific error codes */}
+      {error && (
+        <div style={{ color: "red", marginTop: 12 }}>
+          <p>❌ {error.message}</p>
+          {error.code === "WALLET_NOT_CONNECTED" && (
+            <p>Please connect your wallet first.</p>
+          )}
+          {error.code === "INSUFFICIENT_BALANCE" && (
+            <p>You don't have enough XLM to complete this payment.</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 ```
@@ -770,6 +830,42 @@ export function SendAndTrack() {
 ### useNetwork
 
 Returns the current network configuration. Useful for displaying the active network to users or conditionally rendering content based on which network is active.
+
+### useFriendbot
+
+A safe, testnet-only helper for funding a Stellar testnet account via Friendbot. If a wallet is connected, it uses the connected address by default. Mainnet calls return a clear error.
+
+#### Usage
+
+```tsx
+import { useFriendbot } from "use-stellar";
+
+function FundAccountButton() {
+  const { fund, loading, error, hash, funded } = useFriendbot();
+
+  return (
+    <div>
+      <button onClick={() => fund()} disabled={loading}>
+        {loading ? "Funding..." : "Fund testnet account"}
+      </button>
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      {funded && hash && <p>Funded: {hash}</p>}
+    </div>
+  );
+}
+```
+
+#### Return values
+
+| Property | Type | Description |
+|---|---|---|
+| `loading` | `boolean` | `true` while Friendbot funding is in progress |
+| `error` | `string \| null` | Clear error message for missing addresses or mainnet usage |
+| `hash` | `string \| null` | The Friendbot transaction hash returned by the API |
+| `funded` | `boolean` | `true` when funding completed successfully |
+| `fund` | `(address?: string \| null) => Promise<void>` | Call this to request funding for a testnet address |
+
+---
 
 #### Usage
 

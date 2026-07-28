@@ -1,16 +1,16 @@
 {
-  "name": "use-stellar",
+  "name": "use-stellar-monorepo",
   "private": true,
   "version": "0.1.0",
   "description": "React hooks for the Stellar network",
-  "packageManager": "pnpm@10.30.2",
+  "packageManager": "pnpm@8.0.0",
   "workspaces": [
     "packages/*"
-  ],
-  "scripts": {
+  ],  "scripts": {
     "dev": "pnpm --filter @use-stellar/demo dev",
     "build": "pnpm --filter use-stellar build",
     "test": "pnpm --filter use-stellar test",
+    "test:watch": "pnpm --filter use-stellar test:watch",
     "test:package": "pnpm --filter use-stellar test:package",
     "format": "prettier --write \"packages/**/*.{ts,tsx,json}\"",
     "format:check": "prettier --check \"packages/**/*.{ts,tsx,json}\"",
@@ -19,15 +19,15 @@
     "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
     "prepare": "husky"
   },
-  "lint-staged": {
-    "packages/**/*.{ts,tsx}": [
-      "prettier --write",
-      "eslint --fix --max-warnings 0"
-    ],
-    "packages/**/*.{json,yaml,yml}": [
-      "prettier --write"
-    ]
-  },
+ "lint-staged": {
+  "packages/**/*.{ts,tsx}": [
+    "prettier --write",
+    "eslint --fix --max-warnings 0"
+  ],
+  "packages/**/*.{json,yaml,yml}": [
+    "prettier --write"
+  ]
+},
   "devDependencies": {
     "@types/react": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
@@ -37,5 +37,8 @@
     "lint-staged": "^17.0.8",
     "prettier": "^3.8.4",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@albedo-link/intent": "^0.13.0"
   }
 }

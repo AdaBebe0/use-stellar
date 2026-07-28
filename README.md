@@ -80,7 +80,7 @@ export function WalletConnect() {
   return (
     <div>
       <button onClick={() => connect("freighter")}>Connect Freighter</button>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error.message}</p>}
     </div>
   );
 }
@@ -99,7 +99,7 @@ export function AccountBalance() {
   });
 
   if (loading) return <p>Loading balance...</p>;
-  if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
+  if (error) return <p style={{ color: "red" }}>Error: {error.message}</p>;
 
   return <p>XLM Balance: <strong>{balance ?? "0"}</strong> XLM</p>;
 }
@@ -140,7 +140,7 @@ export function SendPayment() {
       {result?.status === "success" && (
         <p style={{ color: "green" }}>Success! Hash: <code>{result.hash}</code></p>
       )}
-      {error && <p style={{ color: "red" }}>Payment failed: {error}</p>}
+      {error && <p style={{ color: "red" }}>Payment failed: {error.message}</p>}
     </div>
   );
 }
@@ -192,6 +192,40 @@ Here are solutions to common integration and runtime errors:
 
 ---
 
+## Error handling
+
+Every hook exposes `error` as a typed `StellarError | null` rather than a raw
+string. A `StellarError` is a real `Error` subclass with two extra fields:
+
+- `code` — a stable, machine-readable [`StellarErrorCode`](packages/core/src/errors/codes.ts) (e.g. `NO_TRUSTLINE`, `INSUFFICIENT_BALANCE`, `WALLET_REQUEST_REJECTED`, `RATE_LIMITED`, `ACCOUNT_NOT_FOUND`, `NETWORK_ERROR`, `UNKNOWN`).
+- `message` — a human-readable string you can render directly.
+
+```tsx
+import { useSendPayment } from "use-stellar";
+
+function Send() {
+  const { send, error } = useSendPayment();
+
+  // Render the message...
+  if (error) return <p>{error.message}</p>;
+
+  // ...or branch on the stable code.
+  // if (error?.code === "NO_TRUSTLINE") { /* prompt to add a trustline */ }
+}
+```
+
+Any thrown value can be normalised with the shared helpers, which are also
+exported for advanced use:
+
+```ts
+import { toStellarError, createStellarError } from "use-stellar";
+
+const stellarError = toStellarError(unknownThrownValue); // → StellarError
+throw createStellarError("WALLET_NOT_CONNECTED"); // build one directly
+```
+
+---
+
 ## Examples
 
 ### Check a balance
@@ -207,7 +241,7 @@ function Balance() {
   });
 
   if (loading) return <p>Loading...</p>;
-  if (error)   return <p>Error: {error}</p>;
+  if (error)   return <p>Error: {error.message}</p>;
   return <p>{balance} XLM</p>;
 }
 ```
@@ -215,23 +249,144 @@ function Balance() {
 ### Send a payment
 
 ```tsx
-import { useSendPayment } from "use-stellar";
+import { useState } from "react";
+import { useSendPayment, useWallet } from "use-stellar";
 
-function SendButton() {
+export function SendPaymentExample() {
   const { send, loading, error, result } = useSendPayment();
 
-  async function handleSend() {
-    await send({
-      to:     "GDEST...",
-      asset:  "XLM",
-      amount: "10",
-      memo:   "thanks",
-    });
+  const handleSend = async () => {
+    try {
+      // Triggering the payment action with all required/common configuration
+      await send({
+        to: "GAIH3ULLFQ4DGSECF2AR555KZ4KNDGEKN4AFI4SU2M7B43MGK3QJZNSR",
+        asset: "XLM",
+        amount: "1.5",
+        memo: "Sample payment",
+      });
+    } catch (err) {
+      // Errors can be caught here, or read directly from the `error` state property.
+      console.error("Payment failed:", err);
+    }
+  };
+
+  return (
+    <div>
+      {/* Triggering payment action & handling loading state */}
+      <button onClick={handleSend} disabled={loading}>
+        {loading ? "Sending..." : "Send 1.5 XLM"}
+      </button>
+
+      {/* Handling success response */}
+      {result?.status === "success" && (
+        <p style={{ color: "green" }}>
+          Success! Transaction Hash: <code>{result.hash}</code>
+        </p>
+      )}
+
+      {/* Handling errors/failures */}
+      {error && (
+        <p style={{ color: "red" }}>
+          Payment failed: {error.message}
+        </p>
+export default function SendPaymentReadmeExample() {
+  const { connected, connect } = useWallet();
+  const { send, loading, error, result, reset } = useSendPayment();
+
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+
+  // 1. Gate on wallet connection
+  if (!connected) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h2>useSendPayment — README Example</h2>
+        <p>Connect your wallet to try the payment flow.</p>
+        <button onClick={() => connect("freighter")}>Connect Wallet</button>
+      </div>
+    );
   }
 
-  if (result)  return <p>Sent! tx: {result.hash}</p>;
-  if (loading) return <p>Sending...</p>;
-  return <button onClick={handleSend}>Send 10 XLM</button>;
+  // 2. Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    reset(); // Clear previous error / result
+
+    try {
+      const outcome = await send({
+        to,
+        asset: "XLM",        // Required — "XLM" or { code: "USDC", issuer: "G..." }
+        amount,               // Required — must be a string, e.g. "10"
+        memo: "test payment", // Optional
+      });
+      console.log("Transaction hash:", outcome.hash);
+    } catch (err) {
+      // Error is also available via the `error` return value
+      console.error("Payment failed:", err);
+    }
+  };
+
+  return (
+    <div style={{ padding: 24, maxWidth: 480 }}>
+      <h2>useSendPayment — README Example</h2>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Destination address
+            <br />
+            <input
+              placeholder="G..."
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              required
+              style={{ width: "100%", padding: 8, marginTop: 4 }}
+            />
+          </label>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Amount (XLM)
+            <br />
+            <input
+              type="number"
+              placeholder="10"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              min="0"
+              step="0.0000001"
+              required
+              style={{ width: "100%", padding: 8, marginTop: 4 }}
+            />
+          </label>
+        </div>
+
+        {/* 3. Disable button and show loading state */}
+        <button type="submit" disabled={loading} style={{ padding: "8px 16px" }}>
+          {loading ? "Waiting for signature..." : "Send XLM"}
+        </button>
+      </form>
+
+      {/* 4. Handle success */}
+      {result?.status === "success" && (
+        <p style={{ color: "green", marginTop: 12 }}>
+          ✅ Success! Hash: <code>{result.hash}</code>
+        </p>
+      )}
+
+      {/* 5. Handle errors with specific error codes */}
+      {error && (
+        <div style={{ color: "red", marginTop: 12 }}>
+          <p>❌ {error.message}</p>
+          {error.code === "WALLET_NOT_CONNECTED" && (
+            <p>Please connect your wallet first.</p>
+          )}
+          {error.code === "INSUFFICIENT_BALANCE" && (
+            <p>You don't have enough XLM to complete this payment.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 ```
 
@@ -356,6 +511,7 @@ export function WalletButton() {
 | Wallet | Status |
 |---|---|
 | Freighter | ✅ Supported |
+| LOBSTR | ✅ Supported |
 | Albedo | Open issue — contributions welcome |
 | Rabet | Open issue — contributions welcome |
 | xBull | Open issue — contributions welcome |
@@ -388,6 +544,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). All contributions welcome — new hook
 ## Roadmap
 
 - [x] `useWallet` — Freighter connect / disconnect
+- [x] `useWallet` — LOBSTR connect / disconnect
 - [x] `useBalance` — XLM and issued asset balances
 - [x] `useAccount` — full account info
 - [x] `useSendPayment` — sign and submit payments
@@ -395,7 +552,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). All contributions welcome — new hook
 - [x] `useNetwork` — network config
 - [x] `useAsset` — asset metadata
 - [x] `useSorobanContract` — read contract state
-- [ ] Albedo wallet support
+- [x] Albedo wallet support
 - [ ] Rabet wallet support
 - [ ] `useOrderBook` — DEX order book data
 - [ ] `usePaymentHistory` — paginated payment history
@@ -406,4 +563,4 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). All contributions welcome — new hook
 
 ## License
 
-MIT
+[Apache-2.0](LICENSE)
