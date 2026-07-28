@@ -20,6 +20,7 @@ export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "./hooks/useAsse
 export { useSorobanContract } from "./hooks/useSorobanContract"
 export type { UseSorobanContractReturn } from "./hooks/useSorobanContract"
 export { usePayments } from "./hooks/usePayments"
+export { usePaymentHistory } from "./hooks/usePaymentHistory"
 export { useClaimableBalance } from "./hooks/useClaimableBalance"
 export type {
   UseClaimableBalanceOptions,
@@ -77,6 +78,8 @@ export type {
   StellarContextValue,
   UsePaymentsOptions,
   UsePaymentsReturn,
+  UsePaymentHistoryOptions,
+  UsePaymentHistoryReturn,
   ClaimableBalance,
   ClaimableBalanceClaimant,
 } from "./types"

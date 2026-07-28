@@ -225,3 +225,23 @@ export interface UsePaymentsReturn {
   hasNext: boolean
   hasPrev: boolean
 }
+
+export interface UsePaymentHistoryOptions {
+  address?: string | null
+  limit?: number
+  order?: "asc" | "desc"
+  cursor?: string
+  direction?: "incoming" | "outgoing" | "all"
+  asset?: Asset | "all"
+}
+
+export interface UsePaymentHistoryReturn {
+  payments: NormalizedPayment[]
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
+}
