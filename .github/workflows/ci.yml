@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile=false
       - name: Format check
         run: pnpm format:check
       - name: Lint
@@ -35,5 +35,5 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile=false
       - run: pnpm build

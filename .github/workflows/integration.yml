@@ -22,8 +22,8 @@ jobs:
           version: 8
 
       - name: Install Dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile=false
 
       - name: Run Integration Tests
         run: pnpm --filter @israelolrunfemi/use-stellar test:integration
-        # Note: adjust the filter name to match the exact "name" field in packages/core/package.json
+        # Note: adjust the filter name to match the exact "name" field in packages/core/package.jsone
