@@ -162,6 +162,25 @@ export interface SendPaymentResult {
 }
 
 /**
+ * Options for adding a trustline to an asset.
+ */
+export interface AddTrustlineOptions {
+  asset: IssuedAsset
+  limit?: string
+}
+
+/**
+ * Return value from the `useAddTrustline` hook.
+ */
+export interface UseAddTrustlineReturn {
+  addTrustline: (options: AddTrustlineOptions) => Promise<TransactionResult>
+  loading: boolean
+  error: StellarError | null
+  result: TransactionResult | null
+  reset: () => void
+}
+
+/**
  * A normalized payment record for display or processing.
  */
 export interface NormalizedPayment {
