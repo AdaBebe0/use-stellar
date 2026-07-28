@@ -68,7 +68,15 @@ describe("useSendPayment - Payment Flow", () => {
 
     // Mock stellar-sdk
     const { TransactionBuilder, Networks, Operation } = jest.requireActual("@stellar/stellar-sdk")
-    const sdk = jest.requireMock("@stellar/stellar-sdk") as any
+    interface MockStellarSdk {
+      TransactionBuilder: typeof TransactionBuilder
+      Networks: typeof Networks
+      Operation: typeof Operation
+      BASE_FEE: string
+      Memo: { text: jest.Mock }
+      Asset: { native: jest.Mock }
+    }
+    const sdk = jest.requireMock("@stellar/stellar-sdk") as MockStellarSdk
     sdk.TransactionBuilder = TransactionBuilder
     sdk.Networks = Networks
     sdk.Operation = Operation
@@ -77,7 +85,7 @@ describe("useSendPayment - Payment Flow", () => {
     sdk.Asset = { native: jest.fn() }
 
     // Mock getHorizonServer and its methods
-    const { getHorizonServer } = jest.requireMock("../utils") as any
+    const { getHorizonServer } = jest.requireMock("../utils") as { getHorizonServer: jest.Mock }
     getHorizonServer.mockReturnValue({
       loadAccount: jest.fn().mockResolvedValue({
         sequenceNumber: () => "123",
@@ -88,7 +96,7 @@ describe("useSendPayment - Payment Flow", () => {
     })
 
     // Mock wallet adapter
-    const { getWalletAdapter } = jest.requireMock("../wallets") as any
+    const { getWalletAdapter } = jest.requireMock("../wallets") as { getWalletAdapter: jest.Mock }
     getWalletAdapter.mockReturnValue({
       signTransaction: jest.fn().mockResolvedValue("signed_xdr"),
     })
@@ -111,7 +119,7 @@ describe("useSendPayment - Payment Flow", () => {
   })
 
   it("should handle a failed payment", async () => {
-    const { getHorizonServer } = jest.requireMock("../utils") as any
+    const { getHorizonServer } = jest.requireMock("../utils") as { getHorizonServer: jest.Mock }
     getHorizonServer.mockReturnValue({
       loadAccount: jest.fn().mockResolvedValue({
         sequenceNumber: () => "123",
