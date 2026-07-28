@@ -240,6 +240,8 @@ describe("useBalance", () => {
         expect(result.current.loading).toBe(false)
       })
 
+      expect(result.current.balances).toEqual([])
+      expect(result.current.lastUpdated).toBeNull()
       expect(result.current.error?.code).toBe("NETWORK_ERROR")
     })
   })
