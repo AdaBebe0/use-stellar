@@ -61,7 +61,7 @@ const mockAssetData = {
 describe("useAsset", () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    // @ts-ignore
+    // @ts-expect-error - Mocking the call method of the Horizon server for testing purposes.
     mockServer.assets().forCode().forIssuer().call.mockResolvedValue(mockAssetData)
   })
 
@@ -75,7 +75,9 @@ describe("useAsset", () => {
     })
 
     it("should not load when autoFetch is false", () => {
-      const { result } = renderHook(() => useAsset({ ...TEST_ASSET, autoFetch: false }), { wrapper })
+      const { result } = renderHook(() => useAsset({ ...TEST_ASSET, autoFetch: false }), {
+        wrapper,
+      })
 
       expect(result.current.loading).toBe(false)
       expect(result.current.asset).toBe(null)
@@ -112,7 +114,7 @@ describe("useAsset", () => {
 
   describe("error handling", () => {
     it("should handle asset not found error", async () => {
-      // @ts-ignore
+      // @ts-expect-error - Mocking the call method of the Horizon server to simulate asset not found.
       mockServer.assets().forCode().forIssuer().call.mockResolvedValue({ records: [] })
 
       const { result } = renderHook(() => useAsset(TEST_ASSET), { wrapper })
@@ -127,7 +129,7 @@ describe("useAsset", () => {
     })
 
     it("should handle unexpected SDK errors", async () => {
-      // @ts-ignore
+      // @ts-expect-error - Mocking the call method of the Horizon server to simulate a network error.
       mockServer.assets().forCode().forIssuer().call.mockRejectedValue(new Error("Network Error"))
 
       const { result } = renderHook(() => useAsset(TEST_ASSET), { wrapper })
@@ -156,7 +158,7 @@ describe("useAsset", () => {
       expect(result.current.error).toBe(null)
 
       // Mock an error for refetch
-      // @ts-ignore
+      // @ts-expect-error - Mocking the call method of the Horizon server to simulate a network error during refetch.
       mockServer.assets().forCode().forIssuer().call.mockRejectedValue(new Error("Network Error"))
 
       // Call refetch
