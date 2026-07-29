@@ -73,6 +73,8 @@ export function useBalance({
       setLastUpdated(new Date())
     } catch (err) {
       if (fetchId !== requestRef.current) return
+      setBalances([])
+      setLastUpdated(null)
       setError(toStellarError(err))
     } finally {
       if (fetchId === requestRef.current) {

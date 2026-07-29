@@ -132,6 +132,7 @@ export function useSorobanContract({
         setData({ raw: returnVal.toXDR("base64") })
       }
     } catch (err) {
+      setData(null)
       setError(toStellarError(err))
     } finally {
       setLoading(false)

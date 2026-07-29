@@ -72,6 +72,7 @@ export function usePayments({
       setHasNext(res.records.length >= limit)
       setHasPrev(!!cursor)
     } catch (err) {
+      setPayments([])
       setError(toStellarError(err))
     } finally {
       setLoading(false)
@@ -93,6 +94,7 @@ export function usePayments({
       setHasNext(res.records.length >= limit)
       setHasPrev(true)
     } catch (err) {
+      setPayments([])
       setError(toStellarError(err))
     } finally {
       setLoading(false)
@@ -114,6 +116,7 @@ export function usePayments({
       setHasNext(true)
       setHasPrev(res.records.length >= limit)
     } catch (err) {
+      setPayments([])
       setError(toStellarError(err))
     } finally {
       setLoading(false)

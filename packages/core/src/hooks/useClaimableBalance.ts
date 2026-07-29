@@ -64,6 +64,7 @@ export function useClaimableBalance({
       if (stellarError.code === "ACCOUNT_NOT_FOUND") {
         setBalances([])
       } else {
+        setBalances([])
         setError(stellarError)
       }
     } finally {

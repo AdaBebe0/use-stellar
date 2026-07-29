@@ -213,7 +213,7 @@ describe("useTransaction", () => {
         expect(result.current.loading).toBe(false)
       })
 
-      expect(result.current.transaction?.status).toBe("success")
+      expect(result.current.transaction).toBeNull()
       expect(result.current.error?.code).toBe("NETWORK_ERROR")
     })
   })
