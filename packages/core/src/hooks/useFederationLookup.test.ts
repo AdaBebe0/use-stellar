@@ -1,0 +1,96 @@
+import { renderHook, waitFor } from "@testing-library/react"
+import React from "react"
+import { StellarProvider } from "../context/StellarProvider"
+import { useFederationLookup } from "./useFederationLookup"
+
+const mockResolve = jest.fn()
+
+jest.mock("@stellar/stellar-sdk", () => ({
+  Federation: {
+    Server: {
+      resolve: mockResolve,
+    },
+  },
+}))
+
+type FederationResponse = {
+  account_id: string
+  stellar_address: string
+  memo_type?: string
+  memo?: string
+}
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  return React.createElement(StellarProvider, { network: "testnet", children })
+}
+
+const FEDERATED_ADDRESS = "alice*example.com"
+const ACCOUNT_ID = "GCTQZ6K2A7JVUDDJFJXSDBM2QTEOGV7Z2XZ4Y3NQ7KXQWAVWS66LXBYJ"
+
+describe("useFederationLookup", () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it("should resolve a federated address successfully", async () => {
+    const response: FederationResponse = {
+      stellar_address: FEDERATED_ADDRESS,
+      account_id: ACCOUNT_ID,
+      memo_type: "text",
+      memo: "hello",
+    }
+    mockResolve.mockResolvedValue(response)
+
+    const { result } = renderHook(() => useFederationLookup({ address: FEDERATED_ADDRESS }), {
+      wrapper,
+    })
+
+    expect(result.current.loading).toBe(true)
+    await waitFor(() => expect(mockResolve).toHaveBeenCalledWith(FEDERATED_ADDRESS))
+
+    expect(result.current.record).toEqual({
+      stellarAddress: FEDERATED_ADDRESS,
+      accountId: ACCOUNT_ID,
+      memoType: "text",
+      memo: "hello",
+    })
+    expect(result.current.loading).toBe(false)
+    expect(result.current.error).toBeNull()
+  })
+
+  it("should return a validation error when address is malformed", async () => {
+    const { result } = renderHook(() => useFederationLookup({ address: "alice.example.com" }), {
+      wrapper,
+    })
+
+    expect(mockResolve).not.toHaveBeenCalled()
+    expect(result.current.record).toBeNull()
+    expect(result.current.loading).toBe(false)
+    expect(result.current.error?.code).toBe("VALIDATION_ERROR")
+  })
+
+  it("should normalize an unknown federated address error", async () => {
+    mockResolve.mockRejectedValue(new Error("Request failed with status code 404"))
+
+    const { result } = renderHook(() => useFederationLookup({ address: FEDERATED_ADDRESS }), {
+      wrapper,
+    })
+
+    await waitFor(() => expect(mockResolve).toHaveBeenCalled())
+
+    expect(result.current.record).toBeNull()
+    expect(result.current.error?.code).toBe("ACCOUNT_NOT_FOUND")
+    expect(result.current.loading).toBe(false)
+  })
+
+  it("should skip fetching when address is null", () => {
+    const { result } = renderHook(() => useFederationLookup({ address: null }), {
+      wrapper,
+    })
+
+    expect(mockResolve).not.toHaveBeenCalled()
+    expect(result.current.record).toBeNull()
+    expect(result.current.error).toBeNull()
+    expect(result.current.loading).toBe(false)
+  })
+})

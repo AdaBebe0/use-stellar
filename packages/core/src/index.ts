@@ -12,6 +12,12 @@ export type { UseTransactionOptions, UseTransactionReturn } from "./hooks/useTra
 export { useNetwork } from "./hooks/useNetwork"
 export { useAsset } from "./hooks/useAsset"
 export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "./hooks/useAsset"
+export { useFederationLookup } from "./hooks/useFederationLookup"
+export type {
+  FederationRecord,
+  UseFederationLookupOptions,
+  UseFederationLookupReturn,
+} from "./types"
 export { useSorobanContract } from "./hooks/useSorobanContract"
 export { usePayments } from "./hooks/usePayments"
 export { useClaimableBalance } from "./hooks/useClaimableBalance"
