@@ -272,6 +272,15 @@ export interface NormalizedTransaction {
 
 export interface UseTransactionHistoryReturn {
   transactions: NormalizedTransaction[]
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
+}
+
 export interface UsePaymentHistoryOptions {
   address?: string | null
   limit?: number
