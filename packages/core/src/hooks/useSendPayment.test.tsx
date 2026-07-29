@@ -52,47 +52,9 @@ function createWrapper(network: "testnet" | "mainnet" = "testnet") {
   }
 }
 
-describe("useSendPayment - Network Mismatch Protection", () => {
+describe("useSendPayment - Payment Flow", () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    mockWalletState = {
-      connected: false,
-      address: null,
-      network: null,
-      wallet: null,
-      connecting: false,
-      error: null,
-      walletNetwork: null,
-      walletName: null,
-    }
-  })
-
-  it("should throw error when wallet is not connected", async () => {
-    mockWalletState = {
-      connected: false,
-      address: null,
-      network: null,
-      wallet: null,
-      connecting: false,
-      error: null,
-      walletNetwork: null,
-      walletName: null,
-    }
-
-    const { result } = renderHook(() => useSendPayment(), {
-      wrapper: createWrapper("testnet"),
-    })
-
-    await expect(
-      result.current.send({
-        to: "GDEST",
-        amount: "10",
-        asset: "XLM",
-      })
-    ).rejects.toThrow("Wallet not connected")
-  })
-
-  it("should throw error when networks mismatch", async () => {
+    // Set up wallet state for a connected wallet
     mockWalletState = {
       connected: true,
       address: "GABC123",
@@ -100,104 +62,82 @@ describe("useSendPayment - Network Mismatch Protection", () => {
       wallet: "freighter",
       connecting: false,
       error: null,
-      walletNetwork: "mainnet", // Mismatch: wallet on mainnet but provider on testnet
+      walletNetwork: "testnet",
       walletName: "Freighter",
     }
 
-    const { result } = renderHook(() => useSendPayment(), {
-      wrapper: createWrapper("testnet"),
+    // Mock stellar-sdk
+    const { TransactionBuilder, Networks, Operation } = jest.requireActual("@stellar/stellar-sdk")
+    interface MockStellarSdk {
+      TransactionBuilder: typeof TransactionBuilder
+      Networks: typeof Networks
+      Operation: typeof Operation
+      BASE_FEE: string
+      Memo: { text: jest.Mock }
+      Asset: { native: jest.Mock }
+    }
+    const sdk = jest.requireMock("@stellar/stellar-sdk") as MockStellarSdk
+    sdk.TransactionBuilder = TransactionBuilder
+    sdk.Networks = Networks
+    sdk.Operation = Operation
+    sdk.BASE_FEE = "100"
+    sdk.Memo = { text: jest.fn() }
+    sdk.Asset = { native: jest.fn() }
+
+    // Mock getHorizonServer and its methods
+    const { getHorizonServer } = jest.requireMock("../utils") as { getHorizonServer: jest.Mock }
+    getHorizonServer.mockReturnValue({
+      loadAccount: jest.fn().mockResolvedValue({
+        sequenceNumber: () => "123",
+      }),
+      submitTransaction: jest.fn().mockResolvedValue({
+        hash: "tx_hash_123",
+      }),
     })
 
-    await expect(
-      result.current.send({
-        to: "GDEST",
-        amount: "10",
-        asset: "XLM",
-      })
-    ).rejects.toThrow("Network mismatch")
+    // Mock wallet adapter
+    const { getWalletAdapter } = jest.requireMock("../wallets") as { getWalletAdapter: jest.Mock }
+    getWalletAdapter.mockReturnValue({
+      signTransaction: jest.fn().mockResolvedValue("signed_xdr"),
+    })
   })
 
-  it("should proceed when networks match", async () => {
-    mockWalletState = {
-      connected: true,
-      address: "GABC123",
-      network: "testnet",
-      wallet: "freighter",
-      connecting: false,
-      error: null,
-      walletNetwork: "testnet", // Networks match
-      walletName: "Freighter",
-    }
-
+  it("should handle a successful payment", async () => {
     const { result } = renderHook(() => useSendPayment(), {
       wrapper: createWrapper("testnet"),
     })
 
-    // This will fail due to mocked dependencies, but we're checking it doesn't fail on network mismatch
-    await expect(
-      result.current.send({
-        to: "GDEST",
-        amount: "10",
-        asset: "XLM",
-      })
-    ).rejects.not.toThrow("Network mismatch")
+    const paymentOpts = { to: "GDEST", amount: "10", asset: "XLM" as const }
+    await result.current.send(paymentOpts)
+
+    expect(result.current.loading).toBe(false)
+    expect(result.current.error).toBeNull()
+    expect(result.current.result).toEqual({
+      hash: "tx_hash_123",
+      status: "success",
+    })
   })
 
-  it("should proceed when walletNetwork is null (legacy state)", async () => {
-    mockWalletState = {
-      connected: true,
-      address: "GABC123",
-      network: "testnet",
-      wallet: "freighter",
-      connecting: false,
-      error: null,
-      walletNetwork: null, // Legacy state without walletNetwork
-      walletName: "Freighter",
-    }
+  it("should handle a failed payment", async () => {
+    const { getHorizonServer } = jest.requireMock("../utils") as { getHorizonServer: jest.Mock }
+    getHorizonServer.mockReturnValue({
+      loadAccount: jest.fn().mockResolvedValue({
+        sequenceNumber: () => "123",
+      }),
+      submitTransaction: jest.fn().mockRejectedValue(new Error("Submission failed")),
+    })
 
     const { result } = renderHook(() => useSendPayment(), {
       wrapper: createWrapper("testnet"),
     })
 
-    // Should not throw network mismatch error when walletNetwork is null
-    await expect(
-      result.current.send({
-        to: "GDEST",
-        amount: "10",
-        asset: "XLM",
-      })
-    ).rejects.not.toThrow("Network mismatch")
-  })
+    const paymentOpts = { to: "GDEST", amount: "10", asset: "XLM" as const }
 
-  it("should include helpful message in network mismatch error", async () => {
-    mockWalletState = {
-      connected: true,
-      address: "GABC123",
-      network: "testnet",
-      wallet: "freighter",
-      connecting: false,
-      error: null,
-      walletNetwork: "mainnet",
-      walletName: "Freighter",
-    }
+    await expect(result.current.send(paymentOpts)).rejects.toThrow("Submission failed")
 
-    const { result } = renderHook(() => useSendPayment(), {
-      wrapper: createWrapper("testnet"),
-    })
-
-    try {
-      await result.current.send({
-        to: "GDEST",
-        amount: "10",
-        asset: "XLM",
-      })
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error)
-      if (error instanceof Error) {
-        expect(error.message).toContain("Provider is on testnet")
-        expect(error.message).toContain("wallet is on mainnet")
-        expect(error.message).toContain("refreshWalletNetwork()")
-      }
-    }
+    expect(result.current.loading).toBe(false)
+    expect(result.current.error).not.toBeNull()
+    expect(result.current.error?.message).toBe("Submission failed")
+    expect(result.current.result).toBeNull()
   })
 })

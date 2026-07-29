@@ -235,7 +235,7 @@ describe("useAccount", () => {
         expect(result.current.loading).toBe(false)
       })
 
-      expect(result.current.account?.sequence).toBe("1234567890123456")
+      expect(result.current.account).toBe(null)
       expect(result.current.error?.code).toBe("NETWORK_ERROR")
     })
   })

@@ -4,12 +4,18 @@ export { StellarProvider } from "./context/StellarProvider"
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 export { useWallet } from "./hooks/useWallet"
+export type { UseWalletReturn } from "./hooks/useWallet"
 export { useBalance } from "./hooks/useBalance"
+export type { UseBalanceOptions, UseBalanceReturn } from "./hooks/useBalance"
 export { useAccount } from "./hooks/useAccount"
+export type { UseAccountOptions, UseAccountReturn } from "./hooks/useAccount"
 export { useSendPayment } from "./hooks/useSendPayment"
+export type { UseSendPaymentReturn } from "./hooks/useSendPayment"
+export { useAddTrustline } from "./hooks/useAddTrustline"
 export { useTransaction } from "./hooks/useTransaction"
 export type { UseTransactionOptions, UseTransactionReturn } from "./hooks/useTransaction"
 export { useNetwork } from "./hooks/useNetwork"
+export type { UseNetworkReturn } from "./hooks/useNetwork"
 export { useAsset } from "./hooks/useAsset"
 export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "./hooks/useAsset"
 export { useFederationLookup } from "./hooks/useFederationLookup"
@@ -19,8 +25,14 @@ export type {
   UseFederationLookupReturn,
 } from "./types"
 export { useSorobanContract } from "./hooks/useSorobanContract"
+export type { UseSorobanContractReturn } from "./hooks/useSorobanContract"
 export { usePayments } from "./hooks/usePayments"
+export { usePaymentHistory } from "./hooks/usePaymentHistory"
 export { useClaimableBalance } from "./hooks/useClaimableBalance"
+export type {
+  UseClaimableBalanceOptions,
+  UseClaimableBalanceReturn,
+} from "./hooks/useClaimableBalance"
 
 export {
   FREIGHTER_WALLET_TYPE,
@@ -68,11 +80,15 @@ export type {
   TransactionStatus,
   SendPaymentOptions,
   SendPaymentResult,
+  UseAddTrustlineReturn,
+  AddTrustlineOptions,
   NormalizedPayment,
   ContractCallOptions,
   StellarContextValue,
   UsePaymentsOptions,
   UsePaymentsReturn,
+  UsePaymentHistoryOptions,
+  UsePaymentHistoryReturn,
   ClaimableBalance,
   ClaimableBalanceClaimant,
 } from "./types"

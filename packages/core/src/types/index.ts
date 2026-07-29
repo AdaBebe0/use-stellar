@@ -162,6 +162,25 @@ export interface SendPaymentResult {
 }
 
 /**
+ * Options for adding a trustline to an asset.
+ */
+export interface AddTrustlineOptions {
+  asset: IssuedAsset
+  limit?: string
+}
+
+/**
+ * Return value from the `useAddTrustline` hook.
+ */
+export interface UseAddTrustlineReturn {
+  addTrustline: (options: AddTrustlineOptions) => Promise<TransactionResult>
+  loading: boolean
+  error: StellarError | null
+  result: TransactionResult | null
+  reset: () => void
+}
+
+/**
  * A normalized payment record for display or processing.
  */
 export interface NormalizedPayment {
@@ -226,20 +245,22 @@ export interface UsePaymentsReturn {
   hasPrev: boolean
 }
 
-export interface FederationRecord {
-  stellarAddress: string
-  accountId: string
-  memoType?: string
-  memo?: string
-}
-
-export interface UseFederationLookupOptions {
+export interface UsePaymentHistoryOptions {
   address?: string | null
+  limit?: number
+  order?: "asc" | "desc"
+  cursor?: string
+  direction?: "incoming" | "outgoing" | "all"
+  asset?: Asset | "all"
 }
 
-export interface UseFederationLookupReturn {
-  record: FederationRecord | null
+export interface UsePaymentHistoryReturn {
+  payments: NormalizedPayment[]
   loading: boolean
   error: StellarError | null
   refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
 }
