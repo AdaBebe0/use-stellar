@@ -264,3 +264,21 @@ export interface UsePaymentHistoryReturn {
   hasNext: boolean
   hasPrev: boolean
 }
+
+export interface UseAccountExistsOptions {
+  address?: string | null
+}
+
+export type AccountExistsReason =
+  | "exists"
+  | "not_funded"
+  | "invalid_format"
+  | "idle"
+
+export interface UseAccountExistsReturn {
+  exists: boolean | null
+  reason: AccountExistsReason
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+}
