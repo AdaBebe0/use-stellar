@@ -33,10 +33,11 @@ export interface NetworkConfig {
  * />
  */
 export interface CustomNetworkConfig {
-  horizonUrl: string;
-  sorobanUrl: string;
+  horizonUrl: string
+  sorobanUrl: string
 }
 
+/**
  * Pre-defined configurations for supported Stellar networks.
  */
 export const NETWORK_CONFIGS: Record<StellarNetwork, NetworkConfig> = {

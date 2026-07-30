@@ -1,13 +1,13 @@
-import * as React from "react";
-import { createContext, useContext, useState } from "react";
+import * as React from "react"
+import { createContext, useContext, useState } from "react"
 import type {
   CustomNetworkConfig,
   NetworkConfig,
   StellarContextValue,
   StellarNetwork,
   WalletState,
-} from "../types";
-import { NETWORK_CONFIGS } from "../types";
+} from "../types"
+import { NETWORK_CONFIGS } from "../types"
 
 /**
  * The default initial state for a wallet connection in the Stellar context.
@@ -46,36 +46,36 @@ const StellarContext = createContext<StellarContextValue | null>(null)
  */
 function resolveNetworkConfig(
   network: StellarNetwork,
-  override: CustomNetworkConfig | undefined,
+  override: CustomNetworkConfig | undefined
 ): NetworkConfig {
   if (!override) {
     // No override — use the built-in SDF defaults.
-    return NETWORK_CONFIGS[network];
+    return NETWORK_CONFIGS[network]
   }
 
-  const { horizonUrl, sorobanUrl } = override;
+  const { horizonUrl, sorobanUrl } = override
 
   if (!horizonUrl || typeof horizonUrl !== "string" || horizonUrl.trim() === "") {
     throw new Error(
       "use-stellar: Invalid networkConfig — `horizonUrl` is required when " +
-      "providing a custom networkConfig. " +
-      "Example: { horizonUrl: \"https://horizon.my-node.com\", sorobanUrl: \"...\" }"
-    );
+        "providing a custom networkConfig. " +
+        'Example: { horizonUrl: "https://horizon.my-node.com", sorobanUrl: "..." }'
+    )
   }
 
   if (!sorobanUrl || typeof sorobanUrl !== "string" || sorobanUrl.trim() === "") {
     throw new Error(
       "use-stellar: Invalid networkConfig — `sorobanUrl` is required when " +
-      "providing a custom networkConfig. " +
-      "Example: { horizonUrl: \"...\", sorobanUrl: \"https://rpc.my-node.com\" }"
-    );
+        "providing a custom networkConfig. " +
+        'Example: { horizonUrl: "...", sorobanUrl: "https://rpc.my-node.com" }'
+    )
   }
 
   return {
     network,
     horizonUrl: horizonUrl.trim(),
     sorobanUrl: sorobanUrl.trim(),
-  };
+  }
 }
 
 // ── Provider ───────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ export interface StellarProviderProps {
    * - **Impact**: Configures Horizon and Soroban RPC URL endpoints via `NETWORK_CONFIGS` for
    *             all downstream hooks. Determines where transactions are queried and submitted.
    */
-  network?: StellarNetwork;
+  network?: StellarNetwork
   /**
    * Optional override for Horizon and Soroban RPC endpoints.
    * When omitted, the built-in SDF public endpoints are used.
@@ -109,14 +109,14 @@ export interface StellarProviderProps {
    *   }}
    * />
    */
-  networkConfig?: CustomNetworkConfig;
+  networkConfig?: CustomNetworkConfig
   /**
    * The React component tree to be wrapped by the provider.
    *
    * - **Required**: Must contain React components that will consume the Stellar context.
    * - **Omission**: If omitted, it will cause build-time TypeScript errors or render an empty provider.
    */
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
 /**
@@ -129,4 +129,58 @@ export interface StellarProviderProps {
  *   upon initial mounting. This makes the provider lightweight, fast to mount, and fully server-side
  *   rendering (SSR) safe.
  * - **At Runtime**:
- *   - The `network`
+ *   - The `network` prop can change dynamically if updated by the parent component. When the
+ *     `network` prop changes, the context updates its network config instantly, notifying all downstream hooks.
+ *   - The `wallet` state is dynamically managed via the returned `setWallet` function when a wallet
+ *     adapter (e.g. Freighter, LOBSTR) connects, disconnects, or updates network profiles.
+ * - **On Unmount**: Because no background resources (like network polling, socket connections, or event listeners)
+ *   are spawned during initialization or maintained directly by this provider, no cleanup or
+ *   unsubscription operations are performed during the unmount phase.
+ *
+ * @example
+ * ```tsx
+ * <App>
+ *   <StellarProvider>
+ *     <YourApplication />
+ *   </StellarProvider>
+ * </App>
+ * ```
+ */
+export function StellarProvider({
+  network = "testnet",
+  networkConfig: networkConfigOverride,
+  children,
+}: StellarProviderProps) {
+  // Resolve once at render time — throws immediately on bad config so
+  // developers see the error in the console/overlay rather than silently
+  // getting undefined URLs at request time.
+  const resolvedNetworkConfig = resolveNetworkConfig(network, networkConfigOverride)
+
+  const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET)
+
+  const value: StellarContextValue = {
+    network,
+    networkConfig: resolvedNetworkConfig,
+    wallet,
+    setWallet,
+  }
+
+  return <StellarContext.Provider value={value}>{children}</StellarContext.Provider>
+}
+
+/**
+ * Custom hook to consume the Stellar provider context values.
+ *
+ * @throws {Error} If called outside of a `<StellarProvider>` context hierarchy.
+ * @returns {StellarContextValue} The active network, network config, wallet state, and state setter.
+ */
+export function useStellarContext(): StellarContextValue {
+  const ctx = useContext(StellarContext)
+  if (!ctx) {
+    throw new Error(
+      "use-stellar: No StellarProvider found. " +
+        "Wrap your app in <StellarProvider> before using any use-stellar hooks."
+    )
+  }
+  return ctx
+}
