@@ -1,6 +1,7 @@
 // Stellar React SDK - Main entry point
 // ── Provider ───────────────────────────────────────────────────────────────
 export { StellarProvider } from "./context/StellarProvider"
+export type { StellarProviderProps } from "./context/StellarProvider"
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 export { useWallet } from "./hooks/useWallet"
@@ -71,6 +72,7 @@ export {
 export type {
   StellarNetwork,
   NetworkConfig,
+  CustomNetworkConfig,
   WalletType,
   WalletState,
   Asset,
