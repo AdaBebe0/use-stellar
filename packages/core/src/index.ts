@@ -9,6 +9,7 @@ export { useBalance } from "./hooks/useBalance"
 export type { UseBalanceOptions, UseBalanceReturn } from "./hooks/useBalance"
 export { useAccount } from "./hooks/useAccount"
 export type { UseAccountOptions, UseAccountReturn } from "./hooks/useAccount"
+export { useAccountExists } from "./hooks/useAccountExists"
 export { useSendPayment } from "./hooks/useSendPayment"
 export type { UseSendPaymentReturn } from "./hooks/useSendPayment"
 export { useAddTrustline } from "./hooks/useAddTrustline"
@@ -27,6 +28,7 @@ export type {
 export { useSorobanContract } from "./hooks/useSorobanContract"
 export type { UseSorobanContractReturn } from "./hooks/useSorobanContract"
 export { usePayments } from "./hooks/usePayments"
+export { useTransactionHistory } from "./hooks/useTransactionHistory"
 export { usePaymentHistory } from "./hooks/usePaymentHistory"
 export { useClaimableBalance } from "./hooks/useClaimableBalance"
 export type {
@@ -87,10 +89,16 @@ export type {
   StellarContextValue,
   UsePaymentsOptions,
   UsePaymentsReturn,
+  UseTransactionHistoryOptions,
+  UseTransactionHistoryReturn,
+  NormalizedTransaction,
   UsePaymentHistoryOptions,
   UsePaymentHistoryReturn,
   ClaimableBalance,
   ClaimableBalanceClaimant,
+  UseAccountExistsOptions,
+  UseAccountExistsReturn,
+  AccountExistsReason,
 } from "./types"
 export type {
   SignTransactionOptions,

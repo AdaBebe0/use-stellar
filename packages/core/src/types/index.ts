@@ -245,6 +245,42 @@ export interface UsePaymentsReturn {
   hasPrev: boolean
 }
 
+/**
+ * Options for fetching an account's transaction history.
+ */
+export interface UseTransactionHistoryOptions {
+  address?: string | null // defaults to the connected wallet
+  limit?: number // default 10
+  order?: "asc" | "desc" // default "desc"
+  cursor?: string
+}
+
+/**
+ * A normalized transaction record for display or processing.
+ */
+export interface NormalizedTransaction {
+  hash: string
+  ledger: number
+  createdAt: string
+  sourceAccount: string
+  fee: string
+  operationCount: number
+  successful: boolean
+  memo?: string
+  memoType?: string
+}
+
+export interface UseTransactionHistoryReturn {
+  transactions: NormalizedTransaction[]
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
+}
+
 export interface UsePaymentHistoryOptions {
   address?: string | null
   limit?: number
@@ -281,4 +317,16 @@ export interface UseFederationLookupReturn {
   loading: boolean
   error: StellarError | null
   refetch: () => Promise<void>
+export interface UseAccountExistsOptions {
+  address?: string | null
+}
+
+export type AccountExistsReason = "exists" | "not_funded" | "invalid_format" | "idle"
+
+export interface UseAccountExistsReturn {
+  exists: boolean | null
+  reason: AccountExistsReason
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
 }
