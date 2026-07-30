@@ -269,11 +269,7 @@ export interface UseAccountExistsOptions {
   address?: string | null
 }
 
-export type AccountExistsReason =
-  | "exists"
-  | "not_funded"
-  | "invalid_format"
-  | "idle"
+export type AccountExistsReason = "exists" | "not_funded" | "invalid_format" | "idle"
 
 export interface UseAccountExistsReturn {
   exists: boolean | null
