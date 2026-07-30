@@ -317,6 +317,8 @@ export interface UseFederationLookupReturn {
   loading: boolean
   error: StellarError | null
   refetch: () => Promise<void>
+}
+
 export interface UseAccountExistsOptions {
   address?: string | null
 }
