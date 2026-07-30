@@ -1,4 +1,4 @@
-import { renderHook, waitFor, act } from "@testing-library/react"
+import { renderHook, waitFor } from "@testing-library/react"
 import React from "react"
 import { StellarProvider } from "../context/StellarProvider"
 import { useAccountExists } from "./useAccountExists"
@@ -61,7 +61,7 @@ describe("useAccountExists", () => {
   it("should return exists when account is found on horizon", async () => {
     mockServer.loadAccount.mockResolvedValue({})
     const { result } = renderHook(() => useAccountExists({ address: TEST_ADDRESS }), { wrapper })
-    
+
     expect(result.current.loading).toBe(true)
     expect(result.current.exists).toBe(null)
 
@@ -77,7 +77,7 @@ describe("useAccountExists", () => {
 
   it("should return not_funded when account is not found on horizon (404)", async () => {
     mockServer.loadAccount.mockRejectedValue(new Error("Request failed with status code 404"))
-    
+
     const { result } = renderHook(() => useAccountExists({ address: TEST_ADDRESS }), { wrapper })
 
     await waitFor(() => {

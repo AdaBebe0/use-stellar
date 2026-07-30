@@ -4,7 +4,9 @@ import { getHorizonServer, isValidStellarAddress } from "../utils"
 import { toStellarError } from "../errors"
 import type { UseAccountExistsOptions, UseAccountExistsReturn } from "../types"
 
-export function useAccountExists({ address }: UseAccountExistsOptions = {}): UseAccountExistsReturn {
+export function useAccountExists({
+  address,
+}: UseAccountExistsOptions = {}): UseAccountExistsReturn {
   const { network } = useStellarContext()
 
   const [exists, setExists] = useState<boolean | null>(null)
@@ -44,11 +46,11 @@ export function useAccountExists({ address }: UseAccountExistsOptions = {}): Use
 
       setExists(true)
       setReason("exists")
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (fetchId !== requestRef.current) return
 
       const stellarError = toStellarError(err)
-      
+
       if (stellarError.code === "ACCOUNT_NOT_FOUND") {
         setExists(false)
         setReason("not_funded")
