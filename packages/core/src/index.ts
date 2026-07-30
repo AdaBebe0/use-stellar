@@ -9,6 +9,7 @@ export { useBalance } from "./hooks/useBalance"
 export type { UseBalanceOptions, UseBalanceReturn } from "./hooks/useBalance"
 export { useAccount } from "./hooks/useAccount"
 export type { UseAccountOptions, UseAccountReturn } from "./hooks/useAccount"
+export { useAccountExists } from "./hooks/useAccountExists"
 export { useSendPayment } from "./hooks/useSendPayment"
 export type { UseSendPaymentReturn } from "./hooks/useSendPayment"
 export { useAddTrustline } from "./hooks/useAddTrustline"
@@ -89,6 +90,9 @@ export type {
   UsePaymentHistoryReturn,
   ClaimableBalance,
   ClaimableBalanceClaimant,
+  UseAccountExistsOptions,
+  UseAccountExistsReturn,
+  AccountExistsReason,
 } from "./types"
 export type {
   SignTransactionOptions,
