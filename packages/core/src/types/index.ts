@@ -301,6 +301,24 @@ export interface UsePaymentHistoryReturn {
   hasPrev: boolean
 }
 
+export interface FederationRecord {
+  stellarAddress: string
+  accountId: string
+  memoType?: string
+  memo?: string
+}
+
+export interface UseFederationLookupOptions {
+  address?: string | null
+}
+
+export interface UseFederationLookupReturn {
+  record: FederationRecord | null
+  loading: boolean
+  error: StellarError | null
+  refetch: () => Promise<void>
+}
+
 export interface UseAccountExistsOptions {
   address?: string | null
 }

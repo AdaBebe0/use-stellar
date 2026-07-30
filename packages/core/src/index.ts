@@ -19,6 +19,12 @@ export { useNetwork } from "./hooks/useNetwork"
 export type { UseNetworkReturn } from "./hooks/useNetwork"
 export { useAsset } from "./hooks/useAsset"
 export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "./hooks/useAsset"
+export { useFederationLookup } from "./hooks/useFederationLookup"
+export type {
+  FederationRecord,
+  UseFederationLookupOptions,
+  UseFederationLookupReturn,
+} from "./types"
 export { useSorobanContract } from "./hooks/useSorobanContract"
 export type { UseSorobanContractReturn } from "./hooks/useSorobanContract"
 export { usePayments } from "./hooks/usePayments"
