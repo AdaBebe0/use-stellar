@@ -8,9 +8,9 @@
 import { useWallet, useBalance, useSendPayment } from "use-stellar";
 
 function PayButton() {
-  const { connected, connect }  = useWallet();
-  const { balance }             = useBalance();
-  const { send, loading }       = useSendPayment();
+  const { connected, connect } = useWallet();
+  const { balance } = useBalance();
+  const { send, loading } = useSendPayment();
 
   if (!connected) {
     return <button onClick={() => connect()}>Connect wallet</button>;
@@ -44,8 +44,9 @@ function PayButton() {
   - [useAccount](#useaccount)
   - [useSendPayment](#usesendpayment)
   - [useTransaction](#usetransaction)
+  - [usePayments](#usepayments)
+  - [useClaimableBalance](#useclaimablebalance)
   - [useNetwork](#usenetwork)
-  - [useFriendbot](#usefriendbot)
   - [useAsset](#useasset)
   - [useSorobanContract](#usesorobancontract)
 - [TypeScript](#typescript)
@@ -90,7 +91,7 @@ yarn add use-stellar @stellar/stellar-sdk
 
 ---
 
-## Getting started quickstart
+## Quick start
 
 Follow these steps to integrate `use-stellar` into your application.
 
@@ -137,13 +138,13 @@ export function WalletConnect() {
   return (
     <div>
       <button onClick={() => connect("freighter")}>Connect Freighter</button>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error.message}</p>}
     </div>
   );
 }
 ```
 
-### 3. Read XLM Balance
+### 3. Read XLM balance
 
 Use the `useBalance` hook to display the user's XLM balance. Pass `watch: true` to automatically poll and update the balance every 10 seconds.
 
@@ -156,7 +157,7 @@ export function AccountBalance() {
   });
 
   if (loading) return <p>Loading balance...</p>;
-  if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
+  if (error) return <p style={{ color: "red" }}>Error: {error.message}</p>;
 
   return <p>XLM Balance: <strong>{balance ?? "0"}</strong> XLM</p>;
 }
@@ -167,7 +168,7 @@ export function AccountBalance() {
 Use the `useSendPayment` hook to submit payments. Ensure the user's wallet is connected before triggering this action.
 
 > [!WARNING]
-> **Safety Note:** Always test your application on the Stellar Testnet. Never use real XLM or real assets during development. The examples below target the SDF Testnet.
+> **Safety Note:** Always test your application on the Stellar Testnet. Never use real XLM or real assets during development.
 
 ```tsx
 import { useSendPayment } from "use-stellar";
@@ -178,7 +179,7 @@ export function SendPayment() {
   const handlePayment = async () => {
     try {
       const outcome = await send({
-        to: "GDLUW7G2E66W4J... [Replace with a valid testnet destination address]",
+        to: "GDLUW7G2E66W4J...", // a valid testnet destination address
         asset: "XLM",
         amount: "1.5",
         memo: "Quickstart test payment",
@@ -197,7 +198,7 @@ export function SendPayment() {
       {result?.status === "success" && (
         <p style={{ color: "green" }}>Success! Hash: <code>{result.hash}</code></p>
       )}
-      {error && <p style={{ color: "red" }}>Payment failed: {error}</p>}
+      {error && <p style={{ color: "red" }}>Payment failed: {error.message}</p>}
     </div>
   );
 }
@@ -210,14 +211,8 @@ export function SendPayment() {
 To test your application locally, you will need the Freighter browser wallet set up on the Stellar Testnet.
 
 1. **Install Freighter**: Go to [freighter.app](https://www.freighter.app) and install the extension for Chrome, Firefox, Edge, or Brave.
-2. **Switch Freighter to Testnet**:
-   - Open Freighter, click the gear icon (Settings) in the top-right corner.
-   - Select **Preferences** -> **Active Network**.
-   - Select **Test Network**.
-3. **Fund Your Account**:
-   - Copy your Stellar public address from Freighter (starts with `G`).
-   - Navigate to the [Stellar Laboratory Friendbot](https://laboratory.stellar.org/#friendbot).
-   - Paste your address and click **Get test network lumens**. This will activate your account on the testnet and fund it with 10,000 XLM.
+2. **Switch Freighter to Testnet**: Open Freighter, click the gear icon (Settings) → **Preferences** → **Active Network** → **Test Network**.
+3. **Fund your account**: Copy your Stellar public address from Freighter (starts with `G`), then paste it into the [Stellar Laboratory Friendbot](https://laboratory.stellar.org/#friendbot) and click **Get test network lumens**. This funds the account with 10,000 test XLM.
 
 ---
 
@@ -257,7 +252,7 @@ import { StellarProvider } from "use-stellar";
 
 ### useWallet
 
-Connects and disconnects a Stellar wallet. Exposes the connected address and connection state.
+Connects and disconnects a Stellar wallet. Exposes the connected address, connection state, and detects when the wallet extension is on a different network than the provider.
 
 #### Usage
 
@@ -266,14 +261,18 @@ import { useWallet } from "use-stellar";
 
 function MyComponent() {
   const {
-    connected,   // boolean — whether a wallet is connected
-    connecting,  // boolean — true while the connection is in progress
-    address,     // string | null — the connected Stellar address (G...)
-    network,     // "testnet" | "mainnet" | null
-    wallet,      // "freighter" | "albedo" | "rabet" | null
-    error,       // string | null — last connection error
-    connect,     // (wallet?: WalletType) => Promise<void>
-    disconnect,  // () => void
+    connected,             // boolean — whether a wallet is connected
+    connecting,            // boolean — true while the connection is in progress
+    address,               // string | null — the connected Stellar address (G...)
+    network,               // "testnet" | "mainnet" | null — network from StellarProvider
+    wallet,                // "freighter" | "albedo" | "lobstr" | "rabet" | null
+    walletName,            // string | null — display name of the connected wallet (e.g. "Freighter")
+    walletNetwork,         // "testnet" | "mainnet" | null — the network the wallet extension itself is on
+    isNetworkMismatch,     // boolean — true when walletNetwork differs from the provider's network
+    error,                 // StellarError | null — the last connection/signing error
+    connect,               // (wallet?: WalletType) => Promise<void>
+    disconnect,            // () => void
+    refreshWalletNetwork,  // () => Promise<void> — re-check the wallet's active network
   } = useWallet();
 }
 ```
@@ -285,11 +284,15 @@ function MyComponent() {
 | `connected` | `boolean` | `true` if a wallet is currently connected |
 | `connecting` | `boolean` | `true` while a wallet connection is in progress |
 | `address` | `string \| null` | The connected wallet's Stellar address, or `null` if disconnected |
-| `network` | `StellarNetwork \| null` | The network the connected wallet is on |
+| `network` | `StellarNetwork \| null` | The network configured on `StellarProvider` |
 | `wallet` | `WalletType \| null` | Which wallet is connected (`"freighter"`, etc.) |
-| `error` | `string \| null` | The error message from the last failed connection attempt |
+| `walletName` | `string \| null` | Human-readable name of the connected wallet, e.g. `"Freighter"` |
+| `walletNetwork` | `StellarNetwork \| null` | The network the wallet extension itself reports being on |
+| `isNetworkMismatch` | `boolean` | `true` when the connected wallet is on a different network than `StellarProvider` |
+| `error` | `StellarError \| null` | The error from the last failed connection or network check |
 | `connect` | `(wallet?: WalletType) => Promise<void>` | Call this to initiate wallet connection |
 | `disconnect` | `() => void` | Call this to disconnect the wallet |
+| `refreshWalletNetwork` | `() => Promise<void>` | Re-checks the wallet's active network (Freighter only) and updates `walletNetwork` |
 
 #### Parameters
 
@@ -298,6 +301,30 @@ function MyComponent() {
 ```tsx
 connect()              // defaults to Freighter
 connect("freighter")   // explicitly use Freighter
+```
+
+> See [Supported wallets](#supported-wallets) — only Freighter is fully wired up today.
+
+#### Network mismatch protection
+
+If a user connects their wallet while it's set to a different network than your `StellarProvider` (e.g. wallet on Mainnet, app configured for Testnet), `isNetworkMismatch` becomes `true`. `useSendPayment` also checks this automatically and throws a clear error before ever building a transaction, so a mismatched signature can't silently land on the wrong network.
+
+```tsx
+import { useWallet } from "use-stellar";
+
+function NetworkWarning() {
+  const { isNetworkMismatch, walletNetwork, network, refreshWalletNetwork } = useWallet();
+
+  if (!isNetworkMismatch) return null;
+
+  return (
+    <p style={{ color: "red" }}>
+      Your wallet is on {walletNetwork}, but this app is on {network}.
+      Switch networks in your wallet, then{" "}
+      <button onClick={refreshWalletNetwork}>refresh</button>.
+    </p>
+  );
+}
 ```
 
 #### Examples
@@ -325,7 +352,7 @@ export function ConnectButton() {
   return (
     <>
       <button onClick={() => connect()}>Connect wallet</button>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error">{error.message}</p>}
     </>
   );
 }
@@ -365,11 +392,12 @@ import { useBalance } from "use-stellar";
 
 function MyComponent() {
   const {
-    balance,   // string | null — the balance of the requested asset
-    balances,  // Balance[] — all balances for the account
-    loading,   // boolean
-    error,     // string | null
-    refetch,   // () => void — manually re-fetch
+    balance,      // string | null — the balance of the requested asset
+    balances,     // Balance[] — all balances for the account
+    loading,      // boolean
+    error,        // StellarError | null
+    lastUpdated,  // Date | null — timestamp of the last successful fetch
+    refetch,      // () => void — manually re-fetch
   } = useBalance();
 }
 ```
@@ -382,7 +410,8 @@ Pass an options object to customise the behaviour:
 |---|---|---|---|
 | `address` | `string \| null` | Connected wallet address | The Stellar address to fetch balances for. Defaults to the connected wallet. |
 | `asset` | `Asset` | `"XLM"` | The asset to return in `balance`. See [asset format](#asset-format). |
-| `watch` | `boolean` | `false` | When `true`, re-fetches every 10 seconds automatically |
+| `watch` | `boolean` | `false` | When `true`, re-fetches automatically on `interval` |
+| `interval` | `number` | `10000` | Polling interval in ms, used only when `watch` is `true` |
 
 #### Return values
 
@@ -391,7 +420,8 @@ Pass an options object to customise the behaviour:
 | `balance` | `string \| null` | The balance of the requested `asset`, as a decimal string (e.g. `"100.5000000"`). `null` if no trustline exists or address not loaded yet. |
 | `balances` | `Balance[]` | All asset balances for the account |
 | `loading` | `boolean` | `true` while the first fetch is in progress |
-| `error` | `string \| null` | Error message if the fetch failed |
+| `error` | `StellarError \| null` | Error from the failed fetch, if any |
+| `lastUpdated` | `Date \| null` | Timestamp of the last successful fetch |
 | `refetch` | `() => void` | Manually trigger a re-fetch |
 
 #### Asset format
@@ -417,13 +447,13 @@ export function XlmBalance() {
   const { balance, loading, error } = useBalance();
 
   if (loading) return <p>Loading...</p>;
-  if (error)   return <p>Error: {error}</p>;
+  if (error)   return <p>Error: {error.message}</p>;
 
   return <p>XLM Balance: {balance ?? "0"}</p>;
 }
 ```
 
-**USDC balance:**
+**USDC balance with live polling every 5s:**
 
 ```tsx
 import { useBalance } from "use-stellar";
@@ -434,17 +464,10 @@ const USDC = {
 };
 
 export function UsdcBalance() {
-  const { balance, loading } = useBalance({ asset: USDC });
+  const { balance, loading } = useBalance({ asset: USDC, watch: true, interval: 5000 });
 
   return <p>USDC Balance: {loading ? "..." : (balance ?? "0")}</p>;
 }
-```
-
-**Live balance with polling:**
-
-```tsx
-// Re-fetches every 10 seconds automatically
-const { balance } = useBalance({ watch: true });
 ```
 
 **Balance of a specific address:**
@@ -476,7 +499,7 @@ return (
 
 ### useAccount
 
-Fetches full account information from Horizon — balances, signers, sequence number, thresholds, and flags.
+Fetches full account information from Horizon — balances, signers, sequence number, thresholds.
 
 #### Usage
 
@@ -485,19 +508,19 @@ import { useAccount } from "use-stellar";
 
 function MyComponent() {
   const {
-    data,     // AccountInfo | null
+    account,  // AccountInfo | null
     loading,  // boolean
-    error,    // string | null
+    error,    // StellarError | null
     refetch,  // () => void
   } = useAccount();
 }
 ```
 
-#### Parameters
+#### Options
 
-| Parameter | Type | Default | Description |
+| Option | Type | Default | Description |
 |---|---|---|---|
-| `address` | `string` (optional) | Connected wallet address | The address to fetch. Defaults to the connected wallet. |
+| `address` | `string \| null` | Connected wallet address | The address to fetch. Defaults to the connected wallet. |
 
 #### `AccountInfo` shape
 
@@ -527,11 +550,11 @@ interface AccountInfo {
 ```tsx
 import { useAccount } from "use-stellar";
 
-export function AccountInfo() {
-  const { data: account, loading, error } = useAccount();
+export function AccountDetails() {
+  const { account, loading, error } = useAccount();
 
   if (loading) return <p>Loading account...</p>;
-  if (error)   return <p>Error: {error}</p>;
+  if (error)   return <p>Error: {error.message}</p>;
   if (!account) return <p>No account loaded</p>;
 
   return (
@@ -548,21 +571,21 @@ export function AccountInfo() {
 **Check if account has multiple signers (multisig):**
 
 ```tsx
-const { data: account } = useAccount();
+const { account } = useAccount();
 const isMultisig = account ? account.signers.length > 1 : false;
 ```
 
 **Fetch a different address:**
 
 ```tsx
-const { data: account } = useAccount("GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN");
+const { account } = useAccount({ address: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN" });
 ```
 
 ---
 
 ### useSendPayment
 
-Builds, signs, and submits a Stellar payment transaction. Uses the connected wallet to sign.
+Builds, signs, and submits a Stellar payment transaction using the connected wallet. Automatically rejects with a clear error if the wallet is disconnected or its network doesn't match `StellarProvider` (see [network mismatch protection](#network-mismatch-protection)).
 
 #### Usage
 
@@ -573,7 +596,7 @@ function MyComponent() {
   const {
     send,     // (options: SendPaymentOptions) => Promise<SendPaymentResult>
     loading,  // boolean — true while tx is being built/signed/submitted
-    error,    // string | null
+    error,    // StellarError | null
     result,   // SendPaymentResult | null — the result of the last send
     reset,    // () => void — clear error and result
   } = useSendPayment();
@@ -595,10 +618,12 @@ function MyComponent() {
 
 ```ts
 interface SendPaymentResult {
-  hash:   string;           // transaction hash on Stellar
+  hash:   string;            // transaction hash on Stellar
   status: TransactionStatus; // "success" | "failed" | "pending" | "not_found"
 }
 ```
+
+`send()` both returns the result on success and throws a `StellarError` on failure — pick whichever pattern fits your code.
 
 #### Examples
 
@@ -611,11 +636,15 @@ export function SendXlm() {
   const { send, loading, error, result } = useSendPayment();
 
   async function handleSend() {
-    await send({
-      to:     "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
-      asset:  "XLM",
-      amount: "10",
-    });
+    try {
+      await send({
+        to:     "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+        asset:  "XLM",
+        amount: "10",
+      });
+    } catch {
+      // error is also available via the `error` field below
+    }
   }
 
   return (
@@ -623,7 +652,7 @@ export function SendXlm() {
       <button onClick={handleSend} disabled={loading}>
         {loading ? "Sending..." : "Send 10 XLM"}
       </button>
-      {error  && <p style={{ color: "red" }}>Error: {error}</p>}
+      {error  && <p style={{ color: "red" }}>Error: {error.message}</p>}
       {result && <p style={{ color: "green" }}>Sent! Hash: {result.hash}</p>}
     </div>
   );
@@ -649,8 +678,8 @@ await send({
 import { useState } from "react";
 import { useSendPayment, useWallet } from "use-stellar";
 
-export default function SendPaymentReadmeExample() {
-  const { connected, connect } = useWallet();
+export function SendForm() {
+  const { connected }                           = useWallet();
   const { send, loading, error, result, reset } = useSendPayment();
 
   const [to, setTo] = useState("");
@@ -687,65 +716,34 @@ export default function SendPaymentReadmeExample() {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 480 }}>
-      <h2>useSendPayment — README Example</h2>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Destination address
-            <br />
-            <input
-              placeholder="G..."
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              required
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
-            />
-          </label>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Amount (XLM)
-            <br />
-            <input
-              type="number"
-              placeholder="10"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              min="0"
-              step="0.0000001"
-              required
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
-            />
-          </label>
-        </div>
-
-        {/* 3. Disable button and show loading state */}
-        <button type="submit" disabled={loading} style={{ padding: "8px 16px" }}>
-          {loading ? "Waiting for signature..." : "Send XLM"}
-        </button>
-      </form>
-
-      {/* 4. Handle success */}
-      {result?.status === "success" && (
-        <p style={{ color: "green", marginTop: 12 }}>
-          ✅ Success! Hash: <code>{result.hash}</code>
-        </p>
-      )}
-
-      {/* 5. Handle errors with specific error codes */}
-      {error && (
-        <div style={{ color: "red", marginTop: 12 }}>
-          <p>❌ {error.message}</p>
-          {error.code === "WALLET_NOT_CONNECTED" && (
-            <p>Please connect your wallet first.</p>
-          )}
-          {error.code === "INSUFFICIENT_BALANCE" && (
-            <p>You don't have enough XLM to complete this payment.</p>
-          )}
-        </div>
-      )}
-    </div>
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        reset();
+        await send({ to, asset: "XLM", amount });
+      }}
+    >
+      <input
+        placeholder="Destination address (G...)"
+        value={to}
+        onChange={(e) => setTo(e.target.value)}
+        required
+      />
+      <input
+        type="number"
+        placeholder="Amount"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        min="0"
+        step="0.0000001"
+        required
+      />
+      <button type="submit" disabled={loading}>
+        {loading ? "Sending..." : "Send XLM"}
+      </button>
+      {error  && <p style={{ color: "red" }}>{error.message}</p>}
+      {result && <p style={{ color: "green" }}>Transaction confirmed: {result.hash}</p>}
+    </form>
   );
 }
 ```
@@ -754,7 +752,7 @@ export default function SendPaymentReadmeExample() {
 
 ### useTransaction
 
-Fetches a transaction by its hash. Useful for checking the status of a transaction after submission.
+Fetches a transaction by its hash, with optional polling until it settles. Useful for checking the status of a transaction after submission.
 
 #### Usage
 
@@ -763,19 +761,20 @@ import { useTransaction } from "use-stellar";
 
 function MyComponent() {
   const {
-    data,     // TransactionResult | null
-    loading,  // boolean
-    error,    // string | null
-    refetch,  // () => void
-  } = useTransaction("abc123...");
+    transaction,  // TransactionResult | null
+    loading,      // boolean
+    error,        // StellarError | null
+    refetch,      // () => void
+  } = useTransaction({ hash: "abc123...", watch: true });
 }
 ```
 
-#### Parameters
+#### Options
 
-| Parameter | Type | Description |
+| Option | Type | Description |
 |---|---|---|
-| `hash` | `string \| null \| undefined` | The transaction hash to look up. Pass `null` or `undefined` to skip fetching. |
+| `hash` | `string \| null` | The transaction hash to look up. Pass `null` to skip fetching. |
+| `watch` | `boolean` | When `true`, polls every 3 seconds until the transaction reaches `"success"` or `"failed"` |
 
 #### `TransactionResult`
 
@@ -786,6 +785,7 @@ interface TransactionResult {
   ledger?:    number;
   createdAt?: string;
   fee?:       string;
+  envelope?:  string;
 }
 ```
 
@@ -798,13 +798,13 @@ import { useState } from "react";
 import { useSendPayment, useTransaction } from "use-stellar";
 
 export function SendAndTrack() {
-  const [hash, setHash]                  = useState<string | null>(null);
-  const { send, loading: sending }       = useSendPayment();
-  const { data: tx, loading: fetching }  = useTransaction(hash);
+  const [hash, setHash]                 = useState<string | null>(null);
+  const { send, loading: sending }      = useSendPayment();
+  const { transaction, loading: fetching } = useTransaction({ hash, watch: true });
 
   async function handleSend() {
     const result = await send({ to: "G...", asset: "XLM", amount: "1" });
-    if (result) setHash(result.hash);
+    setHash(result.hash);
   }
 
   return (
@@ -816,8 +816,8 @@ export function SendAndTrack() {
       {hash && (
         <div>
           <p>Hash: {hash}</p>
-          <p>Status: {fetching ? "checking..." : tx?.status}</p>
-          {tx?.ledger && <p>Ledger: {tx.ledger}</p>}
+          <p>Status: {fetching ? "checking..." : transaction?.status}</p>
+          {transaction?.ledger && <p>Ledger: {transaction.ledger}</p>}
         </div>
       )}
     </div>
@@ -827,45 +827,144 @@ export function SendAndTrack() {
 
 ---
 
-### useNetwork
+### usePayments
 
-Returns the current network configuration. Useful for displaying the active network to users or conditionally rendering content based on which network is active.
-
-### useFriendbot
-
-A safe, testnet-only helper for funding a Stellar testnet account via Friendbot. If a wallet is connected, it uses the connected address by default. Mainnet calls return a clear error.
+Fetches the payment operation history for an account (payments, account creation, merges, path payments), normalized into one consistent shape, with cursor-based pagination.
 
 #### Usage
 
 ```tsx
-import { useFriendbot } from "use-stellar";
+import { usePayments } from "use-stellar";
 
-function FundAccountButton() {
-  const { fund, loading, error, hash, funded } = useFriendbot();
+function MyComponent() {
+  const {
+    payments,  // NormalizedPayment[]
+    loading,   // boolean
+    error,     // StellarError | null
+    refetch,   // () => void
+    fetchNext, // () => Promise<void>
+    fetchPrev, // () => Promise<void>
+    hasNext,   // boolean
+    hasPrev,   // boolean
+  } = usePayments();
+}
+```
+
+#### Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `address` | `string \| null` | Connected wallet address | The account whose payment history to fetch |
+| `limit` | `number` | `10` | Records per page |
+| `order` | `"asc" \| "desc"` | `"desc"` | Sort order |
+| `cursor` | `string` | — | Horizon paging token to start from |
+
+#### `NormalizedPayment` shape
+
+```ts
+interface NormalizedPayment {
+  id:        string;
+  txHash:    string;
+  type:      string;                     // "payment" | "create_account" | "account_merge" | ...
+  from:      string;
+  to:        string;
+  amount:    string;
+  asset:     Asset;
+  direction: "incoming" | "outgoing";
+  createdAt: string;
+}
+```
+
+#### Example
+
+```tsx
+import { usePayments } from "use-stellar";
+
+export function PaymentHistory() {
+  const { payments, loading, hasNext, fetchNext } = usePayments({ limit: 20 });
+
+  if (loading) return <p>Loading...</p>;
 
   return (
     <div>
-      <button onClick={() => fund()} disabled={loading}>
-        {loading ? "Funding..." : "Fund testnet account"}
-      </button>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {funded && hash && <p>Funded: {hash}</p>}
+      <ul>
+        {payments.map(p => (
+          <li key={p.id}>
+            {p.direction === "incoming" ? "+" : "-"}{p.amount} {p.asset === "XLM" ? "XLM" : p.asset.code}
+          </li>
+        ))}
+      </ul>
+      {hasNext && <button onClick={fetchNext}>Load more</button>}
     </div>
   );
 }
 ```
 
-#### Return values
+---
 
-| Property | Type | Description |
-|---|---|---|
-| `loading` | `boolean` | `true` while Friendbot funding is in progress |
-| `error` | `string \| null` | Clear error message for missing addresses or mainnet usage |
-| `hash` | `string \| null` | The Friendbot transaction hash returned by the API |
-| `funded` | `boolean` | `true` when funding completed successfully |
-| `fund` | `(address?: string \| null) => Promise<void>` | Call this to request funding for a testnet address |
+### useClaimableBalance
+
+Fetches claimable balances available to a Stellar account — funds a sender has set aside for a claimant to accept explicitly.
+
+#### Usage
+
+```tsx
+import { useClaimableBalance } from "use-stellar";
+
+function MyComponent() {
+  const {
+    balances,  // ClaimableBalance[]
+    loading,   // boolean
+    error,     // StellarError | null
+    refetch,   // () => void
+  } = useClaimableBalance();
+}
+```
+
+#### Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `address` | `string \| null` | Connected wallet address | The account to check for claimable balances |
+
+#### `ClaimableBalance` shape
+
+```ts
+interface ClaimableBalance {
+  id:         string;
+  asset:      string;
+  amount:     string;
+  claimants:  { destination: string; predicate: object }[];
+  sponsor?:   string;
+}
+```
+
+#### Example
+
+```tsx
+import { useClaimableBalance } from "use-stellar";
+
+export function ClaimableBalances() {
+  const { balances, loading } = useClaimableBalance();
+
+  if (loading) return <p>Loading...</p>;
+  if (!balances.length) return <p>No claimable balances.</p>;
+
+  return (
+    <ul>
+      {balances.map(b => (
+        <li key={b.id}>{b.amount} {b.asset}</li>
+      ))}
+    </ul>
+  );
+}
+```
 
 ---
+
+### useNetwork
+
+Returns the current network configuration. Useful for displaying the active network to users or conditionally rendering content based on which network is active.
 
 #### Usage
 
@@ -913,44 +1012,69 @@ console.log(networkConfig.horizonUrl); // "https://horizon-testnet.stellar.org"
 
 ### useAsset
 
-Fetches metadata about a Stellar asset — total supply, number of trustlines, and the issuer's home domain.
+Fetches metadata about a Stellar issued asset — total supply, number of trustlines, home domain, and authorization flags.
 
 #### Usage
 
 ```tsx
 import { useAsset } from "use-stellar";
 
-const { data, loading, error, refetch } = useAsset("USDC", "GA5Z...");
+function MyComponent() {
+  const {
+    asset,     // AssetInfo | null
+    loading,   // boolean
+    error,     // StellarError | null
+    refetch,   // () => void
+  } = useAsset({ code: "USDC", issuer: "GA5Z..." });
+}
 ```
 
-#### Parameters
+#### Options
 
-| Parameter | Type | Description |
-|---|---|---|
-| `code` | `string` | The asset code, e.g. `"USDC"` |
-| `issuer` | `string` | The issuer's Stellar address |
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `code` | `string` | Yes | The asset code, e.g. `"USDC"` |
+| `issuer` | `string` | Yes | The issuer's Stellar address |
+| `autoFetch` | `boolean` | No | Fetch automatically on mount / when `code`/`issuer` change (default `true`) |
+
+#### `AssetInfo` shape
+
+```ts
+interface AssetInfo {
+  code:        string;
+  issuer:      string;
+  supply:      string;
+  homeDomain?: string;
+  numAccounts: number;
+  flags: {
+    authRequired:  boolean;
+    authRevocable: boolean;
+    authImmutable: boolean;
+  };
+}
+```
 
 #### Example
 
 ```tsx
 import { useAsset } from "use-stellar";
 
-export function AssetInfo() {
-  const { data, loading, error } = useAsset(
-    "USDC",
-    "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
-  );
+export function AssetDetails() {
+  const { asset, loading, error } = useAsset({
+    code:   "USDC",
+    issuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+  });
 
   if (loading) return <p>Loading asset info...</p>;
-  if (error)   return <p>Error: {error}</p>;
-  if (!data)   return null;
+  if (error)   return <p>Error: {error.message}</p>;
+  if (!asset)  return null;
 
   return (
     <div>
-      <p>Code: {data.code}</p>
-      <p>Home domain: {data.homeDomain ?? "not set"}</p>
-      <p>Total supply: {data.supply}</p>
-      <p>Trustlines: {data.numAccounts}</p>
+      <p>Code: {asset.code}</p>
+      <p>Home domain: {asset.homeDomain ?? "not set"}</p>
+      <p>Total supply: {asset.supply}</p>
+      <p>Trustlines: {asset.numAccounts}</p>
     </div>
   );
 }
@@ -960,9 +1084,9 @@ export function AssetInfo() {
 
 ### useSorobanContract
 
-Calls a read function on a deployed Soroban smart contract.
+Simulates a call to a deployed Soroban smart contract and returns its result. Runs automatically whenever `contractId`, `method`, or `args` change — there is no manual "call" trigger, use `refetch` to re-run with the same arguments.
 
-> **Note:** This hook currently supports read-only simulation calls. Write calls (with signing) are tracked in [GitHub issue #8](https://github.com/YOUR_HANDLE/use-stellar/issues/8) — contributions welcome.
+> **Note:** This hook currently supports read-only simulation calls. Write calls (with signing) are not yet implemented — contributions welcome.
 
 #### Usage
 
@@ -971,47 +1095,42 @@ import { useSorobanContract } from "use-stellar";
 
 function MyComponent() {
   const {
-    call,     // (options: ContractCallOptions) => Promise<unknown>
+    data,     // unknown | null — the decoded return value from the contract
     loading,  // boolean
-    error,    // string | null
-    result,   // unknown — the return value from the contract
-  } = useSorobanContract();
+    error,    // StellarError | null
+    refetch,  // () => void — re-run the same call
+  } = useSorobanContract({
+    contractId: "CABC123...",
+    method:     "get_price",
+    args:       ["XLM"],
+  });
 }
 ```
 
-#### `ContractCallOptions`
+#### Options
 
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `contractId` | `string` | Yes | The deployed contract address (starts with `C`) |
 | `method` | `string` | Yes | The contract function name to call |
-| `args` | `unknown[]` | No | Arguments to pass to the function |
+| `args` | `unknown[]` | No | Arguments to pass to the function — strings, booleans, and integer numbers are converted automatically; pass an `xdr.ScVal` directly for anything more complex |
 
 #### Example
 
 ```tsx
 import { useSorobanContract } from "use-stellar";
 
-export function ContractReader() {
-  const { call, loading, error, result } = useSorobanContract();
+export function ContractReader({ contractId }: { contractId: string }) {
+  const { data, loading, error } = useSorobanContract({
+    contractId,
+    method: "get_price",
+    args:   ["XLM"],
+  });
 
-  async function readPrice() {
-    await call({
-      contractId: "CABC123...",
-      method:     "get_price",
-      args:       ["XLM"],
-    });
-  }
+  if (loading) return <p>Reading contract...</p>;
+  if (error)   return <p style={{ color: "red" }}>{error.message}</p>;
 
-  return (
-    <div>
-      <button onClick={readPrice} disabled={loading}>
-        {loading ? "Reading..." : "Read contract"}
-      </button>
-      {error  && <p style={{ color: "red" }}>{error}</p>}
-      {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
-    </div>
-  );
+  return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```
 
@@ -1025,21 +1144,24 @@ export function ContractReader() {
 
 ```ts
 import type {
-  StellarNetwork,       // "testnet" | "mainnet"
-  NetworkConfig,        // { network, horizonUrl, sorobanUrl }
-  CustomNetworkConfig,  // { horizonUrl, sorobanUrl } — for StellarProvider networkConfig prop
-  WalletType,           // "freighter" | "albedo" | "rabet"
-  WalletState,        // { connected, address, network, wallet, connecting, error }
-  Asset,              // "XLM" | { code: string, issuer: string }
-  NativeAsset,        // "XLM"
-  IssuedAsset,        // { code: string, issuer: string }
-  Balance,            // { asset, balance, limit?, buying?, selling? }
-  AccountInfo,        // full account shape
-  TransactionResult,  // { hash, status, ledger?, createdAt?, fee? }
-  TransactionStatus,  // "pending" | "success" | "failed" | "not_found"
-  SendPaymentOptions, // { to, asset, amount, memo? }
-  SendPaymentResult,  // { hash, status }
-  ContractCallOptions,// { contractId, method, args? }
+  StellarNetwork,      // "testnet" | "mainnet"
+  NetworkConfig,       // { network, horizonUrl, sorobanUrl }
+  WalletType,          // "freighter" | "lobstr" | "albedo" | "rabet"
+  WalletState,         // { connected, address, network, wallet, walletName, connecting, error, walletNetwork }
+  Asset,               // "XLM" | { code: string, issuer: string }
+  NativeAsset,         // "XLM"
+  IssuedAsset,         // { code: string, issuer: string }
+  Balance,             // { asset, balance, limit?, liquidityPoolId? }
+  AccountInfo,         // full account shape
+  TransactionResult,   // { hash, status, ledger?, createdAt?, fee?, envelope? }
+  TransactionStatus,   // "pending" | "success" | "failed" | "not_found"
+  SendPaymentOptions,  // { to, asset, amount, memo? }
+  SendPaymentResult,   // { hash, status }
+  NormalizedPayment,   // { id, txHash, type, from, to, amount, asset, direction, createdAt }
+  ClaimableBalance,    // { id, asset, amount, claimants, sponsor? }
+  ContractCallOptions, // { contractId, method, args? }
+  StellarError,        // Error subclass with `code` and `message`
+  StellarErrorCode,    // union of every STELLAR_ERROR_CODES value
 } from "use-stellar";
 ```
 
@@ -1145,28 +1267,69 @@ const { network, networkConfig, isTestnet, isMainnet } = useNetwork();
 
 ## Error handling & troubleshooting
 
-All hooks expose an `error` string when something goes wrong. Errors are human-readable messages you can display directly to users.
+Every hook exposes `error` as a typed `StellarError | null`, never a raw string. `StellarError` is a real `Error` subclass with two extra fields:
 
-### Pattern
+- **`code`** — a stable, machine-readable `StellarErrorCode` you can branch on.
+- **`message`** — a human-readable string you can render directly.
 
 ```tsx
 const { data, loading, error, refetch } = useBalance();
 
 if (loading) return <p>Loading...</p>;
-if (error)   return <p>{error} — <button onClick={refetch}>Retry</button></p>;
-if (!data)   return null;
-
-return <p>Balance: {data.balance}</p>;
+if (error) {
+  return (
+    <p>
+      {error.message} — <button onClick={refetch}>Retry</button>
+    </p>
+  );
+}
 ```
 
-### Common errors
+Branch on the stable `code` when you need different behavior per failure type:
 
-| Error / Issue | Probable Cause | Solution |
+```tsx
+if (error?.code === "NO_TRUSTLINE") {
+  // prompt the user to add a trustline
+}
+```
+
+### Error codes
+
+| Code | Meaning |
+|---|---|
+| `WALLET_NOT_INSTALLED` | The selected wallet extension isn't installed or detected |
+| `WALLET_NOT_CONNECTED` | An action required a connected wallet but none was connected |
+| `WALLET_REQUEST_REJECTED` | The user rejected the request in their wallet |
+| `WRONG_NETWORK` | The wallet is connected to a different network than expected |
+| `ACCOUNT_NOT_FOUND` | The requested account or resource doesn't exist on the ledger (404) |
+| `INSUFFICIENT_BALANCE` | The source account lacks the funds to complete the operation |
+| `NO_TRUSTLINE` | The destination doesn't hold a trustline for the asset |
+| `TRANSACTION_FAILED` | The transaction was submitted but failed on the network |
+| `RATE_LIMITED` | Horizon rate-limited the request (429) |
+| `VALIDATION_ERROR` | Caller-supplied input was invalid, or the environment was unsupported (e.g. calling a browser-only hook during SSR) |
+| `NETWORK_ERROR` | A transport-level failure — offline, DNS, timeout, CORS |
+| `UNKNOWN` | Anything that couldn't be confidently classified |
+
+### Advanced: normalizing errors yourself
+
+The helpers used internally are also exported, for advanced use (e.g. wrapping your own Horizon calls):
+
+```ts
+import { toStellarError, createStellarError, isStellarError } from "use-stellar";
+
+const stellarError = toStellarError(unknownThrownValue); // → StellarError
+throw createStellarError("WALLET_NOT_CONNECTED");         // build one directly
+isStellarError(err);                                      // type guard
+```
+
+### Common issues
+
+| Error / Issue | Probable cause | Solution |
 | :--- | :--- | :--- |
-| `Freighter wallet not found. Install...` | The Freighter browser extension is missing or disabled in your browser. | Install the extension from [freighter.app](https://www.freighter.app) and ensure it is active. |
-| `Wrong network. Switch Freighter to...` | Freighter is set to Mainnet (or another network) while `StellarProvider` is configured to `testnet` (or vice versa). | Open Freighter settings, select **Preferences** -> **Active Network**, and select the network configured in `StellarProvider`. |
-| `Failed to fetch balance` | The Stellar address has not been funded yet and does not exist on the ledger. | Use the [Stellar Lab Friendbot](https://laboratory.stellar.org/#friendbot) to fund the address with testnet XLM before attempting to read its balance. |
-| `Transaction failed` (e.g., during payment) | Insufficient balance, invalid destination address, missing asset trustline, or network timeout. | 1. Ensure the sender has enough XLM to cover the payment amount and the base transaction fee (0.00001 XLM).<br>2. Confirm the destination address is valid and exists on the active network.<br>3. Check developer console logs for the specific transaction error XDR. |
+| `Freighter wallet not found. Install...` | The Freighter browser extension is missing or disabled. | Install it from [freighter.app](https://www.freighter.app) and ensure it's active. |
+| `Wrong network. Switch Freighter to...` / `isNetworkMismatch` is `true` | Freighter is set to a different network than `StellarProvider`. | Open Freighter → **Preferences** → **Active Network**, and select the network configured in `StellarProvider`. |
+| `Failed to fetch balance` / `ACCOUNT_NOT_FOUND` | The address hasn't been funded yet and doesn't exist on the ledger. | Use the [Stellar Lab Friendbot](https://laboratory.stellar.org/#friendbot) to fund a testnet address first. |
+| `Transaction failed` during `send()` | Insufficient balance, invalid destination, missing trustline, or network timeout. | Ensure the sender has enough XLM to cover the amount plus the base fee, confirm the destination is valid on the active network, and check the console for the transaction's error XDR. |
 
 ---
 
@@ -1174,11 +1337,12 @@ return <p>Balance: {data.balance}</p>;
 
 | Wallet | Status | Notes |
 |---|---|---|
-| [Freighter](https://freighter.app) | Supported | Default wallet |
-| Albedo | Coming soon | Tracked in [issue #3](https://github.com/YOUR_HANDLE/use-stellar/issues/3) |
-| Rabet | Coming soon | Tracked in [issue #4](https://github.com/YOUR_HANDLE/use-stellar/issues/4) |
+| [Freighter](https://freighter.app) | ✅ Supported | Default wallet, fully wired |
+| Albedo | 🚧 In progress | Adapter is implemented (`@albedo-link/intent`) but not yet wired into the wallet registry — `connect("albedo")` currently throws. Contributions to finish the integration welcome. |
+| LOBSTR | Planned | Not yet implemented |
+| Rabet | Planned | Not yet implemented |
 
-Contributions for new wallet integrations are welcome — see [CONTRIBUTING.md](https://github.com/YOUR_HANDLE/use-stellar/blob/main/CONTRIBUTING.md).
+Contributions for new wallet integrations are welcome — see [CONTRIBUTING.md](https://github.com/israelolrunfemi/use-stellar/blob/main/CONTRIBUTING.md).
 
 ---
 
@@ -1186,10 +1350,10 @@ Contributions for new wallet integrations are welcome — see [CONTRIBUTING.md](
 
 `use-stellar` is open source and welcomes contributions. Every hook is a self-contained TypeScript file — you do not need Rust or blockchain expertise to contribute.
 
-See [CONTRIBUTING.md](https://github.com/YOUR_HANDLE/use-stellar/blob/main/CONTRIBUTING.md) for setup instructions and a guide to adding new hooks and wallet integrations.
+See [CONTRIBUTING.md](https://github.com/israelolrunfemi/use-stellar/blob/main/CONTRIBUTING.md) for setup instructions and a guide to adding new hooks and wallet integrations.
 
 ```bash
-git clone https://github.com/YOUR_HANDLE/use-stellar
+git clone https://github.com/israelolrunfemi/use-stellar
 cd use-stellar
 pnpm install
 pnpm --filter use-stellar build
@@ -1200,4 +1364,4 @@ pnpm --filter @use-stellar/demo dev
 
 ## License
 
-MIT © [RACEEY](https://github.com/israelolrunfemi)
+[Apache-2.0](https://github.com/israelolrunfemi/use-stellar/blob/main/LICENSE)
