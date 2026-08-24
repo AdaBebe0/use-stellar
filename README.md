@@ -181,14 +181,16 @@ Here are solutions to common integration and runtime errors:
 
 | Hook | Description |
 |---|---|
-| `useWallet` | Connect / disconnect Freighter, expose address and network |
-| `useBalance` | Fetch XLM or any asset balance for an address |
+| `useWallet` | Connect / disconnect a wallet, expose address, network, and network-mismatch detection |
+| `useBalance` | Fetch XLM or any asset balance for an address, with optional polling |
 | `useAccount` | Full account info — balances, sequence, signers, thresholds |
-| `useSendPayment` | Send XLM or USDC, handles signing and submission |
+| `useSendPayment` | Send XLM or any issued asset, handles signing and submission |
 | `useTransaction` | Fetch and watch a transaction by hash |
+| `usePayments` | Paginated payment history for an account |
+| `useClaimableBalance` | Claimable balances available to an account |
 | `useNetwork` | Current network, Horizon and Soroban RPC URLs |
 | `useAsset` | Asset metadata — supply, issuer, home domain, flags |
-| `useSorobanContract` | Call a read function on any deployed Soroban contract |
+| `useSorobanContract` | Simulate a read call on any deployed Soroban contract |
 
 ---
 
@@ -301,6 +303,31 @@ function Account() {
 }
 ```
 
+### Paginated payment history
+
+```tsx
+import { usePayments } from "use-stellar";
+
+function PaymentHistory() {
+  const { payments, loading, hasNext, fetchNext } = usePayments({ limit: 20 });
+
+  if (loading) return <p>Loading...</p>;
+
+  return (
+    <div>
+      <ul>
+        {payments.map(p => (
+          <li key={p.id}>
+            {p.direction === "incoming" ? "+" : "-"}{p.amount} {p.asset === "XLM" ? "XLM" : p.asset.code}
+          </li>
+        ))}
+      </ul>
+      {hasNext && <button onClick={fetchNext}>Load more</button>}
+    </div>
+  );
+}
+```
+
 ---
 
 ## StellarProvider
@@ -390,10 +417,10 @@ export function WalletButton() {
 | Wallet | Status |
 |---|---|
 | Freighter | ✅ Supported |
-| LOBSTR | ✅ Supported |
-| Albedo | Open issue — contributions welcome |
-| Rabet | Open issue — contributions welcome |
-| xBull | Open issue — contributions welcome |
+| Albedo | 🚧 In progress — adapter implemented, not yet wired into the wallet registry |
+| LOBSTR | Planned — open issue, contributions welcome |
+| Rabet | Planned — open issue, contributions welcome |
+| xBull | Planned — open issue, contributions welcome |
 
 ---
 
@@ -422,20 +449,22 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). All contributions welcome — new hook
 
 ## Roadmap
 
-- [x] `useWallet` — Freighter connect / disconnect
-- [x] `useWallet` — LOBSTR connect / disconnect
-- [x] `useBalance` — XLM and issued asset balances
+- [x] `useWallet` — Freighter connect / disconnect, network-mismatch detection
+- [x] `useBalance` — XLM and issued asset balances, with polling
 - [x] `useAccount` — full account info
 - [x] `useSendPayment` — sign and submit payments
 - [x] `useTransaction` — fetch and watch by hash
+- [x] `usePayments` — paginated payment history
+- [x] `useClaimableBalance` — claimable balances
 - [x] `useNetwork` — network config
 - [x] `useAsset` — asset metadata
 - [x] `useSorobanContract` — read contract state
-- [x] Albedo wallet support
+- [ ] Wire the existing Albedo adapter into the wallet registry
+- [ ] LOBSTR wallet support
 - [ ] Rabet wallet support
 - [ ] `useOrderBook` — DEX order book data
-- [ ] `usePaymentHistory` — paginated payment history
 - [ ] `useTrustline` — add / remove trustlines
+- [ ] Soroban write calls (signed contract invocations)
 - [ ] React Native support
 
 ---
