@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.1.5]
 
+
 ### Added
 - `usePayments` hook — paginated payment history for an account
 - `useClaimableBalance` hook — claimable balances for an account
@@ -27,5 +28,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - useTransaction hook
 - useNetwork hook
 - useAsset hook
-- useSorobanContract hook (read-only)
+- useSorobanContract hook (read-only) 
 - StellarProvider context
+
+

@@ -1,7 +1,7 @@
 # Wallet Network Sync Implementation
 
 ## Overview
-Successfully implemented wallet network sync detection to prevent payments from being built for the wrong network when users change networks in their wallet extensions after connecting.
+Successfully implemented wallet network sync detection to prevent fund payments from being built for the wrong network when users change networks in their wallet extensions after connecting.
 
 ## What Was Implemented
 

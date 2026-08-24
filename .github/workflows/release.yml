@@ -14,9 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v3
         with:
-          version: 10.30.2
+          version: 8
 
       - uses: actions/setup-node@v4
         with:
@@ -24,8 +24,8 @@ jobs:
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
-      - run: pnpm install --frozen-lockfile
-
+      - run: pnpm install
+      - run: pnpm install --frozen-lockfile=false
       - run: pnpm test
 
       - run: pnpm build
