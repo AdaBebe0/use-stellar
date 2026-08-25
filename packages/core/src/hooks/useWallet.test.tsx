@@ -16,75 +16,58 @@ jest.mock("@stellar/freighter-api", () => ({
 const mockIsConnected = jest.mocked(isConnected)
 const mockRequestAccess = jest.mocked(requestAccess)
 const mockGetNetworkDetails = jest.mocked(getNetworkDetails)
+const mockedFreighter = freighterApi as jest.Mocked<typeof freighterApi>
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <StellarProvider>{children}</StellarProvider>
 )
 
-describe("useWallet", () => {
-  beforeEach(() => {
-    jest.resetAllMocks()
-  })
-
-  it("keeps connect freighter backward compatible", async () => {
-    mockIsConnected.mockResolvedValue({ isConnected: true })
-    mockRequestAccess.mockResolvedValue({ address: "GABC" })
-    mockGetNetworkDetails.mockResolvedValue({
-      network: "TESTNET",
-      networkUrl: "https://horizon-testnet.stellar.org",
-      networkPassphrase: NETWORK_PASSPHRASES.testnet,
-    })
-
-    const { result } = renderHook(() => useWallet(), { wrapper })
-
-    await act(async () => {
-      await result.current.connect("freighter")
-    })
-
-    expect(result.current.connected).toBe(true)
-    expect(result.current.address).toBe("GABC")
-    expect(result.current.wallet).toBe("freighter")
-    expect(result.current.walletName).toBe("Freighter")
-    expect(result.current.error).toBeNull()
-  })
-
-  it("sets a typed unsupported-wallet message without breaking state", async () => {
-    const { result } = renderHook(() => useWallet(), { wrapper })
-
-    await act(async () => {
-      await result.current.connect("rabet")
-    })
-
-    expect(result.current.connected).toBe(false)
-    expect(result.current.wallet).toBeNull()
-    expect(result.current.error?.message).toBe("Rabet is not supported yet.")
-  })
-})
-
-// Mock the Freighter API
-jest.mock("@stellar/freighter-api")
-
-// Mock isBrowser to return true for these tests
-jest.mock("../utils", () => ({
-  ...jest.requireActual("../utils"),
-  isBrowser: () => true,
-}))
-
-const mockedFreighter = freighterApi as jest.Mocked<typeof freighterApi>
-
-// Wrapper component
 function createWrapper(network: "testnet" | "mainnet" = "testnet") {
   return function Wrapper({ children }: { children: ReactNode }) {
     return <StellarProvider network={network}>{children}</StellarProvider>
   }
 }
 
-describe("useWallet - Network Sync", () => {
+describe("useWallet", () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    jest.resetAllMocks()
   })
 
   describe("connect", () => {
+    it("keeps connect freighter backward compatible", async () => {
+      mockIsConnected.mockResolvedValue({ isConnected: true })
+      mockRequestAccess.mockResolvedValue({ address: "GABC" })
+      mockGetNetworkDetails.mockResolvedValue({
+        network: "TESTNET",
+        networkUrl: "https://horizon-testnet.stellar.org",
+        networkPassphrase: NETWORK_PASSPHRASES.testnet,
+      })
+
+      const { result } = renderHook(() => useWallet(), { wrapper })
+
+      await act(async () => {
+        await result.current.connect("freighter")
+      })
+
+      expect(result.current.connected).toBe(true)
+      expect(result.current.address).toBe("GABC")
+      expect(result.current.wallet).toBe("freighter")
+      expect(result.current.walletName).toBe("Freighter")
+      expect(result.current.error).toBeNull()
+    })
+
+    it("sets a typed unsupported-wallet message without breaking state", async () => {
+      const { result } = renderHook(() => useWallet(), { wrapper })
+
+      await act(async () => {
+        await result.current.connect("rabet")
+      })
+
+      expect(result.current.connected).toBe(false)
+      expect(result.current.wallet).toBeNull()
+      expect(result.current.error?.message).toBe("Rabet is not supported yet.")
+    })
+
     it("should capture wallet network on successful connection", async () => {
       mockedFreighter.isConnected.mockResolvedValue({
         isConnected: true,
@@ -145,6 +128,43 @@ describe("useWallet - Network Sync", () => {
 
       expect(result.current.connected).toBe(false)
       expect(result.current.error?.message).toContain("Wrong network")
+    })
+  })
+
+  describe("disconnect", () => {
+    it("should clear wallet network state", async () => {
+      mockedFreighter.isConnected.mockResolvedValue({
+        isConnected: true,
+        error: undefined,
+      })
+      mockedFreighter.requestAccess.mockResolvedValue({
+        address: "GABC123",
+        error: undefined,
+      })
+      mockedFreighter.getNetworkDetails.mockResolvedValue({
+        networkPassphrase: "Test SDF Network ; September 2015",
+        error: undefined,
+        network: "testnet",
+        networkUrl: "",
+      })
+
+      const { result } = renderHook(() => useWallet(), {
+        wrapper: createWrapper("testnet"),
+      })
+
+      await act(async () => {
+        await result.current.connect("freighter")
+      })
+
+      expect(result.current.walletNetwork).toBe("testnet")
+
+      act(() => {
+        result.current.disconnect()
+      })
+
+      expect(result.current.connected).toBe(false)
+      expect(result.current.walletNetwork).toBe(null)
+      expect(result.current.isNetworkMismatch).toBe(false)
     })
   })
 
@@ -318,43 +338,6 @@ describe("useWallet - Network Sync", () => {
         wrapper: createWrapper("testnet"),
       })
 
-      expect(result.current.isNetworkMismatch).toBe(false)
-    })
-  })
-
-  describe("disconnect", () => {
-    it("should clear wallet network state", async () => {
-      mockedFreighter.isConnected.mockResolvedValue({
-        isConnected: true,
-        error: undefined,
-      })
-      mockedFreighter.requestAccess.mockResolvedValue({
-        address: "GABC123",
-        error: undefined,
-      })
-      mockedFreighter.getNetworkDetails.mockResolvedValue({
-        networkPassphrase: "Test SDF Network ; September 2015",
-        error: undefined,
-        network: "testnet",
-        networkUrl: "",
-      })
-
-      const { result } = renderHook(() => useWallet(), {
-        wrapper: createWrapper("testnet"),
-      })
-
-      await act(async () => {
-        await result.current.connect("freighter")
-      })
-
-      expect(result.current.walletNetwork).toBe("testnet")
-
-      act(() => {
-        result.current.disconnect()
-      })
-
-      expect(result.current.connected).toBe(false)
-      expect(result.current.walletNetwork).toBe(null)
       expect(result.current.isNetworkMismatch).toBe(false)
     })
   })

@@ -7,17 +7,27 @@ describe("wallet adapter registry", () => {
     expect(adapter.metadata).toEqual({
       type: "freighter",
       name: "Freighter",
-      supported: false,
+      supported: true,
+    })
+  })
+
+  it("returns the supported Albedo adapter", async () => {
+    const adapter = getWalletAdapter("albedo")
+
+    expect(adapter.metadata).toEqual({
+      type: "albedo",
+      name: "Albedo",
+      supported: true,
     })
   })
 
   it("returns typed unsupported adapters for known future wallets", async () => {
-    const adapter = getWalletAdapter("albedo")
+    const adapter = getWalletAdapter("rabet")
 
     expect(adapter.metadata.supported).toBe(false)
     await expect(adapter.connect("testnet")).rejects.toMatchObject({
       code: "wallet_unsupported",
-      message: "Albedo is not supported yet.",
+      message: "Rabet is not supported yet.",
     })
   })
 })

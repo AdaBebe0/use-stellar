@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react"
 import type { StellarError } from "../errors"
 
 export type { StellarError, StellarErrorCode } from "../errors"
+export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "../hooks/useAsset"
 
 /**
  * Represents the Stellar network environment.
@@ -13,6 +14,25 @@ export type StellarNetwork = "testnet" | "mainnet"
  */
 export interface NetworkConfig {
   network: StellarNetwork
+  horizonUrl: string
+  sorobanUrl: string
+}
+
+/**
+ * Partial override for custom Horizon / Soroban RPC endpoints.
+ * Pass this to `StellarProvider` to bypass the built-in SDF defaults.
+ *
+ * @example
+ * // Private infrastructure or rate-limit avoidance:
+ * <StellarProvider
+ *   network="mainnet"
+ *   networkConfig={{
+ *     horizonUrl: "https://horizon.my-node.com",
+ *     sorobanUrl: "https://rpc.my-node.com",
+ *   }}
+ * />
+ */
+export interface CustomNetworkConfig {
   horizonUrl: string
   sorobanUrl: string
 }
@@ -161,6 +181,25 @@ export interface SendPaymentResult {
 }
 
 /**
+ * Options for adding a trustline to an asset.
+ */
+export interface AddTrustlineOptions {
+  asset: IssuedAsset
+  limit?: string
+}
+
+/**
+ * Return value from the `useAddTrustline` hook.
+ */
+export interface UseAddTrustlineReturn {
+  addTrustline: (options: AddTrustlineOptions) => Promise<TransactionResult>
+  loading: boolean
+  error: StellarError | null
+  result: TransactionResult | null
+  reset: () => void
+}
+
+/**
  * A normalized payment record for display or processing.
  */
 export interface NormalizedPayment {
@@ -223,4 +262,92 @@ export interface UsePaymentsReturn {
   fetchPrev: () => Promise<void>
   hasNext: boolean
   hasPrev: boolean
+}
+
+/**
+ * Options for fetching an account's transaction history.
+ */
+export interface UseTransactionHistoryOptions {
+  address?: string | null // defaults to the connected wallet
+  limit?: number // default 10
+  order?: "asc" | "desc" // default "desc"
+  cursor?: string
+}
+
+/**
+ * A normalized transaction record for display or processing.
+ */
+export interface NormalizedTransaction {
+  hash: string
+  ledger: number
+  createdAt: string
+  sourceAccount: string
+  fee: string
+  operationCount: number
+  successful: boolean
+  memo?: string
+  memoType?: string
+}
+
+export interface UseTransactionHistoryReturn {
+  transactions: NormalizedTransaction[]
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+export interface UsePaymentHistoryOptions {
+  address?: string | null
+  limit?: number
+  order?: "asc" | "desc"
+  cursor?: string
+  direction?: "incoming" | "outgoing" | "all"
+  asset?: Asset | "all"
+}
+
+export interface UsePaymentHistoryReturn {
+  payments: NormalizedPayment[]
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+  fetchNext: () => Promise<void>
+  fetchPrev: () => Promise<void>
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+export interface FederationRecord {
+  stellarAddress: string
+  accountId: string
+  memoType?: string
+  memo?: string
+}
+
+export interface UseFederationLookupOptions {
+  address?: string | null
+}
+
+export interface UseFederationLookupReturn {
+  record: FederationRecord | null
+  loading: boolean
+  error: StellarError | null
+  refetch: () => Promise<void>
+}
+
+export interface UseAccountExistsOptions {
+  address?: string | null
+}
+
+export type AccountExistsReason = "exists" | "not_funded" | "invalid_format" | "idle"
+
+export interface UseAccountExistsReturn {
+  exists: boolean | null
+  reason: AccountExistsReason
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
 }
