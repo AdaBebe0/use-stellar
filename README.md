@@ -18,18 +18,26 @@ Building a React app on Stellar means writing the same boilerplate every time â€
 
 ## Installation
 
-Install `use-stellar` along with its peer dependency `@stellar/stellar-sdk`:
+Install `use-stellar`. `@stellar/stellar-sdk` is bundled as a regular dependency â€” you do not need to install it separately, but you can install it explicitly if your own code imports from it directly:
 
 ```bash
 # npm
-npm install use-stellar @stellar/stellar-sdk
+npm install use-stellar
 
 # pnpm
-pnpm add use-stellar @stellar/stellar-sdk
+pnpm add use-stellar
 
 # yarn
-yarn add use-stellar @stellar/stellar-sdk
+yarn add use-stellar
 ```
+
+If you import `@stellar/stellar-sdk` directly in your own code, add it as well:
+
+```bash
+npm install use-stellar @stellar/stellar-sdk
+```
+
+> **Note:** `packages/core/package.json` declares `@stellar/stellar-sdk` under `dependencies`, not `peerDependencies`. It is shipped with the package. See [pkg-02](https://github.com/RaceeyXo/use-stellar/issues) for the ongoing discussion about the dependency layout.
 
 ---
 
