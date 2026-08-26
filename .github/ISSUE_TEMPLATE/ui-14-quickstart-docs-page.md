@@ -36,8 +36,7 @@ developer knows it worked.
 ### What to design (in Figma)
 
 - Reuse the UI-13 docs shell (sidebar + narrow reading column + anchor rail).
-- **Numbered steps** (e.g. 1. Install → 2. Add the provider → 3. Use a hook →
-  4. See the result), each with a title, short prose, and a copyable code block.
+- **Numbered steps** (e.g. 1. Install → 2. Add the provider → 3. Use a hook → 4. See the result), each with a title, short prose, and a copyable code block.
 - A **result preview** (rendered output) for the final step per the frame.
 - "Next steps" links (Hooks, Guides) at the bottom.
 - Reuse the doc primitives from UI-13 (code block, callout, step markers).

@@ -43,13 +43,13 @@ published style library is what keeps every independently-designed frame on-bran
 
 **1. Color styles** — publish a named, semantic palette as Figma color styles:
 
-| Style | Purpose |
-| --- | --- |
-| `brand` (+ `brand/hover`, `brand/muted`) | primary brand / CTA color |
-| `surface` / `surface/raised` / `surface/sunken` | page & card backgrounds |
-| `text/heading` / `text/body` / `text/muted` | text colors |
-| `border` | default hairline/border |
-| `success` / `warning` / `danger` | status colors (badges reuse these) |
+| Style                                           | Purpose                            |
+| ----------------------------------------------- | ---------------------------------- |
+| `brand` (+ `brand/hover`, `brand/muted`)        | primary brand / CTA color          |
+| `surface` / `surface/raised` / `surface/sunken` | page & card backgrounds            |
+| `text/heading` / `text/body` / `text/muted`     | text colors                        |
+| `border`                                        | default hairline/border            |
+| `success` / `warning` / `danger`                | status colors (badges reuse these) |
 
 - Include any **gradients** from the frame as gradient styles (e.g. `hero/gradient`).
 

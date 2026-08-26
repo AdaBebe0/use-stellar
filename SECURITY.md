@@ -33,11 +33,13 @@ you have been notified.
 ## Scope
 
 In scope:
+
 - Vulnerabilities that could cause loss of funds on mainnet
 - Unauthorised transaction signing or submission
 - Private key or secret exposure through the library
 
 Out of scope (report via GitHub issues):
+
 - Vulnerabilities that only affect the testnet demo app with no real-fund risk
 - UI bugs or incorrect hook behaviour with no security impact
 
