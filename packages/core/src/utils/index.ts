@@ -94,8 +94,24 @@ export function shortenAddress(address: string, chars = 6): string {
 }
 
 // ── Amount helpers ─────────────────────────────────────────────────────────
+/**
+ * Formats a decimal amount without converting it to a floating-point number.
+ *
+ * Fractional digits beyond `decimals` are truncated rather than rounded so
+ * formatting never increases the amount's magnitude.
+ *
+ * @param amount - A plain decimal string, optionally prefixed with `-`.
+ * @param decimals - The maximum number of fractional digits to preserve.
+ * @returns The formatted amount, or `"0"` when the input is invalid.
+ */
 export function formatAmount(amount: string, decimals = 7): string {
-  const num = parseFloat(amount)
-  if (isNaN(num)) return "0"
-  return num.toFixed(decimals).replace(/\.?0+$/, "")
+  if (!/^-?\d+(\.\d+)?$/.test(amount)) return "0"
+
+  const [integerPart, fractionPart = ""] = amount.split(".")
+  const fraction = fractionPart.padEnd(decimals, "0").slice(0, decimals).replace(/0+$/, "")
+
+  const isZero = /^-?0+$/.test(integerPart) && fraction.length === 0
+  if (isZero) return "0"
+
+  return fraction ? `${integerPart}.${fraction}` : integerPart
 }
