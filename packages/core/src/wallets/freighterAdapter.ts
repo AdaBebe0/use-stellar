@@ -7,15 +7,13 @@ import {
   WatchWalletChanges,
 } from "@stellar/freighter-api"
 import type { StellarNetwork, WalletNetworkId } from "../types"
+import { NETWORK_PASSPHRASES } from "../types"
 import type { WalletAdapter, WalletNetworkState, WalletNetworkDetails } from "./types"
 import { WalletAdapterError } from "./types"
 
 export const FREIGHTER_WALLET_TYPE = "freighter" as const
 
-export const NETWORK_PASSPHRASES: Record<StellarNetwork, string> = {
-  mainnet: "Public Global Stellar Network ; September 2015",
-  testnet: "Test SDF Network ; September 2015",
-}
+export { NETWORK_PASSPHRASES }
 
 /** How often (ms) the Freighter watcher polls the extension for changes. */
 const WATCH_INTERVAL = 3_000
@@ -23,14 +21,30 @@ const WATCH_INTERVAL = 3_000
 /**
  * Maps a network passphrase onto a known network.
  *
+ * Driven by the shared {@link NETWORK_PASSPHRASES} table rather than a ladder
+ * of string literals, so adding a network is one entry in one place.
+ *
  * An unrecognised passphrase is a private or standalone network — it is
  * reported as `"custom"`, never thrown on, so a wallet pointed at a local
  * quickstart node stays usable.
  */
 export function resolveNetworkFromPassphrase(passphrase: string): WalletNetworkId {
-  if (passphrase === NETWORK_PASSPHRASES.mainnet) return "mainnet"
-  if (passphrase === NETWORK_PASSPHRASES.testnet) return "testnet"
-  return "custom"
+  const match = (Object.keys(NETWORK_PASSPHRASES) as (keyof typeof NETWORK_PASSPHRASES)[]).find(
+    network => NETWORK_PASSPHRASES[network] === passphrase
+  )
+
+  return match ?? "custom"
+}
+
+/**
+ * The passphrase a wallet is expected to report for a network.
+ *
+ * A `"custom"` network has no known passphrase — the adapter cannot assert
+ * what the wallet should be on, so it accepts whatever the wallet reports and
+ * leaves the mismatch check to the provider's resolved config.
+ */
+function getExpectedPassphrase(network: StellarNetwork): string | null {
+  return network === "custom" ? null : NETWORK_PASSPHRASES[network]
 }
 
 async function getFreighterNetworkDetails(network: StellarNetwork): Promise<WalletNetworkDetails> {
@@ -39,8 +53,8 @@ async function getFreighterNetworkDetails(network: StellarNetwork): Promise<Wall
     throw new WalletAdapterError("wallet_access_rejected", details.error.message)
   }
 
-  const expectedPassphrase = NETWORK_PASSPHRASES[network]
-  if (details.networkPassphrase !== expectedPassphrase) {
+  const expectedPassphrase = getExpectedPassphrase(network)
+  if (expectedPassphrase !== null && details.networkPassphrase !== expectedPassphrase) {
     throw new WalletAdapterError(
       "wallet_network_mismatch",
       `Wrong network. Switch Freighter to ${network} and try again.`
@@ -49,7 +63,7 @@ async function getFreighterNetworkDetails(network: StellarNetwork): Promise<Wall
 
   return {
     network,
-    networkPassphrase: expectedPassphrase,
+    networkPassphrase: expectedPassphrase ?? details.networkPassphrase,
   }
 }
 

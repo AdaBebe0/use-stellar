@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react"
 import { getNetworkDetails, isAllowed, isConnected, requestAccess } from "@stellar/freighter-api"
 import { StellarProvider, WALLET_SESSION_STORAGE_KEY } from "../context/StellarProvider"
 import { NETWORK_PASSPHRASES, registerWalletAdapter } from "../wallets"
+import { getNetworkPassphrase } from "../types"
 import { useWallet } from "./useWallet"
 import * as freighterApi from "@stellar/freighter-api"
 
@@ -339,11 +340,11 @@ describe("useWallet", () => {
             address: TEST_ADDRESS,
             wallet: "refreshable",
             network,
-            networkPassphrase: NETWORK_PASSPHRASES[network],
+            networkPassphrase: getNetworkPassphrase(network) ?? "",
           }),
           getNetworkDetails: async network => ({
             network,
-            networkPassphrase: NETWORK_PASSPHRASES[network],
+            networkPassphrase: getNetworkPassphrase(network) ?? "",
           }),
           resolveNetwork,
           signTransaction: async () => "signed",
@@ -706,11 +707,11 @@ describe("useWallet — custom adapters", () => {
           address: TEST_ADDRESS,
           wallet: "outside-wallet",
           network,
-          networkPassphrase: NETWORK_PASSPHRASES[network],
+          networkPassphrase: getNetworkPassphrase(network) ?? "",
         }),
         getNetworkDetails: async network => ({
           network,
-          networkPassphrase: NETWORK_PASSPHRASES[network],
+          networkPassphrase: getNetworkPassphrase(network) ?? "",
         }),
         signTransaction: async () => "signed",
       },
