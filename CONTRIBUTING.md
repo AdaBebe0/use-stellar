@@ -40,7 +40,7 @@ No Rust, no Stellar CLI, no wallet required to run tests or work on most hooks.
 ### Clone and install
 
 ```bash
-git clone https://github.com/israelolrunfemi/use-stellar
+git clone https://github.com/YOUR_HANDLE/use-stellar
 cd use-stellar
 git checkout dev
 pnpm install
@@ -49,7 +49,7 @@ pnpm install
 ### Run the test suite
 
 ```bash
-npm run test
+pnpm test
 ```
 
 ### Run package smoke tests
@@ -57,13 +57,13 @@ npm run test
 Verify the published package imports and type resolution integrity locally:
 
 ```bash
-npm run test:package
+pnpm test:package
 ```
 
 ### Run the demo app
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open `http://localhost:3000`. The demo shows every hook with a live output panel.
@@ -79,8 +79,16 @@ This project uses Husky to enforce code quality automatically.
 Before every commit — Prettier formats your staged files and ESLint checks
 them. If either fails your commit is blocked. Fix the errors and try again.
 
-Before every push — the SDK is built and all tests are run. If either fails
-your push is blocked.
+Before every push — the following checks run automatically. If any fails,
+your push is blocked:
+
+- **Format check** — `pnpm format:check`
+- **Lint** — `pnpm lint`
+- **Type check** — `pnpm typecheck`
+- **SDK build** — `pnpm build`
+
+Note: tests are not run by the pre-push hook. Run `pnpm test` manually before
+pushing, or they will only be caught in CI.
 
 To run checks manually at any time:
 
@@ -88,6 +96,7 @@ To run checks manually at any time:
 pnpm format       # format all files
 pnpm lint         # run ESLint
 pnpm typecheck    # run TypeScript compiler check
+pnpm test         # run the test suite
 ```
 
 ---
@@ -105,36 +114,38 @@ packages/core/src/hooks/useYourHook.ts
 Follow the pattern of an existing hook like `useBalance.ts`:
 
 ```typescript
-import { useState, useEffect } from "react";
-import { useStellarContext }   from "../context/StellarProvider";
+import { useState, useEffect } from "react"
+import { useStellarContext } from "../context/StellarProvider"
 
 export interface UseYourHookReturn {
-  data:    SomeType | null;
-  loading: boolean;
-  error:   string | null;
-  refetch: () => void;
+  data: SomeType | null
+  loading: boolean
+  error: string | null
+  refetch: () => void
 }
 
 export function useYourHook(): UseYourHookReturn {
-  const { network } = useStellarContext();
-  const [data,    setData]    = useState<SomeType | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const { network } = useStellarContext()
+  const [data, setData] = useState<SomeType | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function fetch() {
-    setLoading(true);
+    setLoading(true)
     try {
       // your logic here
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      setError(err instanceof Error ? err.message : "Failed")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
-  useEffect(() => { fetch(); }, [network]);
+  useEffect(() => {
+    fetch()
+  }, [network])
 
-  return { data, loading, error, refetch: fetch };
+  return { data, loading, error, refetch: fetch }
 }
 ```
 
@@ -143,7 +154,7 @@ export function useYourHook(): UseYourHookReturn {
 Add to `packages/core/src/index.ts`:
 
 ```typescript
-export { useYourHook } from "./hooks/useYourHook";
+export { useYourHook } from "./hooks/useYourHook"
 ```
 
 ### 3. Add types if needed
@@ -178,8 +189,8 @@ Wallets are added in `packages/core/src/hooks/useWallet.ts`.
 ## Pull request checklist
 
 - [ ] PR targets `dev`, not `main`
-- [ ] Tests pass (`npm run test`)
-- [ ] TypeScript compiles (`npm run typecheck`)
+- [ ] Tests pass (`pnpm test`)
+- [ ] TypeScript compiles (`pnpm typecheck`)
 - [ ] New hook is exported from `packages/core/src/index.ts`
 - [ ] New hook has a demo page
 - [ ] PR references the relevant issue (`Closes #N`)
@@ -218,6 +229,7 @@ git push origin v0.2.0
 ```
 
 The workflow will automatically:
+
 - Run tests and build
 - Publish `packages/core` to npm (requires `NODE_AUTH_TOKEN` secret set in repository settings)
 - Create a GitHub Release with the changelog notes for that version
@@ -226,4 +238,4 @@ The workflow will automatically:
 
 ## Need help?
 
-Open a [GitHub Discussion](../../discussions) or comment on the issue you're working on. No question is too basic.
+Open a [GitHub Discussion](../../discussions) or comment on the issue you are working on. No question is too basic.
