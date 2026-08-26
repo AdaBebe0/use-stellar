@@ -55,8 +55,22 @@ export const NETWORK_CONFIGS: Record<StellarNetwork, NetworkConfig> = {
 
 /**
  * Supported wallet providers.
+ *
+ * The built-in types keep autocomplete, while `(string & {})` lets an
+ * application or a wallet vendor register its own adapter with
+ * `registerWalletAdapter()` and pass that type to `connect()`.
  */
-export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet"
+export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet" | (string & {})
+
+/**
+ * The network a wallet reports it is currently on.
+ *
+ * `"custom"` means the wallet reported a passphrase that is neither the SDF
+ * testnet nor the SDF mainnet one — a private or standalone network. It is a
+ * value, not an error: the wallet is simply somewhere this app does not
+ * recognise, which `isNetworkMismatch` reports as a mismatch.
+ */
+export type WalletNetworkId = StellarNetwork | "custom"
 
 /**
  * The current state of the wallet connection.
@@ -68,8 +82,14 @@ export interface WalletState {
   network: StellarNetwork | null // Network from provider config
   wallet: WalletType | null
   error: StellarError | null
-  walletNetwork: StellarNetwork | null // Actual network from wallet extension
+  walletNetwork: WalletNetworkId | null // Actual network from wallet extension
   walletName: string | null
+  /**
+   * Raw passphrase reported by the wallet, present when `walletNetwork` is
+   * set. Optional so existing code that builds a `WalletState` by hand keeps
+   * compiling.
+   */
+  walletNetworkPassphrase?: string | null
 }
 
 /**
@@ -220,7 +240,40 @@ export interface NormalizedPayment {
 export interface ContractCallOptions {
   contractId: string
   method: string
+  /**
+   * Call arguments. `xdr.ScVal` values are the primary path and pass through
+   * untouched; a bare `number` or `string` is ambiguous in Soroban's type
+   * system and is rejected with an error naming the XDR type to use.
+   */
   args?: unknown[]
+  /**
+   * The contract's parsed spec. When supplied, arguments are converted against
+   * the parameter types the contract itself declares, and the return value is
+   * decoded against its declared return type.
+   *
+   * @example
+   * const spec = new contract.Spec(specEntries)
+   */
+  spec?: ContractSpecLike
+  /**
+   * Account to simulate as. Defaults to the connected wallet address, then to
+   * a documented placeholder when no wallet is connected.
+   */
+  sourceAccount?: string
+}
+
+/**
+ * The subset of the SDK's `contract.Spec` this library uses.
+ *
+ * Declared structurally so consumers are not forced to line up SDK instance
+ * types across package boundaries.
+ */
+export interface ContractSpecLike {
+  funcArgsToScVals: (name: string, args: object) => unknown[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  funcResToNative: (name: string, val: any) => any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getFunc: (name: string) => any
 }
 
 export interface ClaimableBalanceClaimant {
@@ -237,6 +290,27 @@ export interface ClaimableBalance {
 }
 
 /**
+ * Options controlling whether a wallet session survives a page reload.
+ *
+ * Autoconnect is **off by default** — enabling it is an explicit choice,
+ * because it changes what happens on mount for an existing consumer.
+ */
+export interface AutoConnectOptions {
+  /** Restore the wallet session on mount. Defaults to `false`. */
+  enabled?: boolean
+  /**
+   * Also persist the connected public address, so a UI can render it during
+   * the moment between mount and the wallet answering. Defaults to `false`.
+   *
+   * Only ever the public address. Nothing secret is persisted — a wallet
+   * adapter holds no key material and this hook must not start.
+   */
+  persistAddress?: boolean
+  /** Where to persist. Defaults to `"local"` (`localStorage`). */
+  storage?: "local" | "session"
+}
+
+/**
  * Context value provided by the StellarProvider.
  */
 export interface StellarContextValue {
@@ -244,6 +318,8 @@ export interface StellarContextValue {
   networkConfig: NetworkConfig
   wallet: WalletState
   setWallet: Dispatch<SetStateAction<WalletState>>
+  /** Fully-resolved autoconnect options. `enabled` is `false` unless opted in. */
+  autoConnect: Required<AutoConnectOptions>
 }
 
 export interface UsePaymentsOptions {
@@ -350,4 +426,121 @@ export interface UseAccountExistsReturn {
   loading: boolean
   error: StellarError | null
   refetch: () => void
+}
+
+// ── Path payments (swaps) ──────────────────────────────────────────────────
+/**
+ * A single conversion route returned by `usePaymentPaths`.
+ */
+export interface PaymentPath {
+  /** Intermediate hops. Empty means a direct market exists. */
+  path: Asset[]
+  /** What leaves the sender's account on this route. */
+  sourceAmount: string
+  /** What arrives at the destination on this route. */
+  destinationAmount: string
+  /** `destinationAmount / sourceAmount`, as a precise decimal string. */
+  rate: string
+}
+
+/**
+ * Options for `usePaymentPaths`.
+ *
+ * The mode decides which amount you must supply: `strictSend` pins what you
+ * send, `strictReceive` pins what the recipient gets.
+ */
+export type UsePaymentPathsOptions =
+  | {
+      mode: "strictSend"
+      sourceAsset: Asset
+      /** Required in `strictSend` mode — exactly what leaves your account. */
+      sourceAmount: string
+      destinationAsset: Asset
+      destinationAmount?: never
+      /**
+       * Optional: restrict results to assets this account can actually
+       * receive, which is usually what a UI wants.
+       */
+      destinationAddress?: string
+      sourceAddress?: never
+      enabled?: boolean
+      /** Re-fetch on an interval. Quotes go stale in seconds. */
+      watch?: boolean
+      /** Polling interval in ms when `watch` is true (default 10000). */
+      interval?: number
+    }
+  | {
+      mode: "strictReceive"
+      sourceAsset: Asset
+      sourceAmount?: never
+      destinationAsset: Asset
+      /** Required in `strictReceive` mode — exactly what must arrive. */
+      destinationAmount: string
+      destinationAddress?: never
+      /**
+       * Optional: restrict results to assets this account actually holds, so
+       * every quote is one the sender can pay with.
+       */
+      sourceAddress?: string
+      enabled?: boolean
+      /** Re-fetch on an interval. Quotes go stale in seconds. */
+      watch?: boolean
+      /** Polling interval in ms when `watch` is true (default 10000). */
+      interval?: number
+    }
+
+export interface UsePaymentPathsReturn {
+  /** Candidate routes, best rate first. Empty means no route exists. */
+  paths: PaymentPath[]
+  loading: boolean
+  error: StellarError | null
+  /** When the current `paths` were fetched. Quotes go stale in seconds. */
+  lastUpdated: Date | null
+  refetch: () => Promise<void>
+}
+
+/**
+ * Options for `usePathPayment`.
+ *
+ * `mode` discriminates which amount is pinned and which slippage bound is
+ * required. Both bounds are required — there is no permissive default.
+ */
+export type PathPaymentOptions =
+  | {
+      mode: "strictSend"
+      destination: string
+      sendAsset: Asset
+      /** Exactly what leaves your account. */
+      sendAmount: string
+      destAsset: Asset
+      /** Required — the least the recipient will accept. Your slippage bound. */
+      destMin: string
+      /** Intermediate hops from `usePaymentPaths`. Empty means direct. */
+      path?: Asset[]
+      memo?: string
+      sendMax?: never
+      destAmount?: never
+    }
+  | {
+      mode: "strictReceive"
+      destination: string
+      sendAsset: Asset
+      /** Required — the most you will spend. Your slippage bound. */
+      sendMax: string
+      destAsset: Asset
+      /** Exactly what arrives at the destination. */
+      destAmount: string
+      /** Intermediate hops from `usePaymentPaths`. Empty means direct. */
+      path?: Asset[]
+      memo?: string
+      sendAmount?: never
+      destMin?: never
+    }
+
+export interface UsePathPaymentReturn {
+  pathPayment: (options: PathPaymentOptions) => Promise<TransactionResult>
+  loading: boolean
+  error: StellarError | null
+  result: TransactionResult | null
+  reset: () => void
 }
