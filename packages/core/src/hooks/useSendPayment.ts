@@ -10,7 +10,7 @@ import {
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, isNativeAsset, isIssuedAsset, isBrowser } from "../utils"
 import { getWalletAdapter } from "../wallets"
-import { createStellarError, toStellarError } from "../errors"
+import { createStellarError, toStellarError, toSubmissionError } from "../errors"
 import type { SendPaymentOptions, SendPaymentResult, Asset, StellarError } from "../types"
 
 export interface UseSendPaymentReturn {
@@ -105,6 +105,15 @@ export function useSendPayment(): UseSendPaymentReturn {
 
         const signed = TransactionBuilder.fromXDR(signedTxXdr, networkPassphrase)
         const res = await server.submitTransaction(signed)
+
+        if (!res.successful) {
+          const failedOutcome: SendPaymentResult = {
+            hash: res.hash,
+            status: "failed",
+          }
+          setResult(failedOutcome)
+          throw toSubmissionError(res)
+        }
 
         const outcome: SendPaymentResult = {
           hash: res.hash,

@@ -1,6 +1,7 @@
 import {
   createStellarError,
   toStellarError,
+  toSubmissionError,
   StellarError,
   isStellarError,
   isStellarErrorCode,
@@ -109,6 +110,18 @@ describe("toStellarError — Horizon result codes", () => {
       })
     )
     expect(err.code).toBe("NO_TRUSTLINE")
+  })
+})
+
+describe("toSubmissionError", () => {
+  it("classifies failed submissions and preserves the transaction hash", () => {
+    const error = toSubmissionError({
+      hash: "failed_tx_hash",
+      extras: { result_codes: { operations: ["op_no_trust"] } },
+    })
+
+    expect(error.code).toBe("NO_TRUSTLINE")
+    expect(error.hash).toBe("failed_tx_hash")
   })
 })
 
