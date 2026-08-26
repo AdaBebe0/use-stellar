@@ -70,12 +70,12 @@ export function useSendPayment(): UseSendPaymentReturn {
       setResult(null)
 
       try {
+        const stellarAsset = toStellarAsset(options.asset)
         const server = getHorizonServer(network)
         const sourceAcc = await server.loadAccount(wallet.address)
         const networkPassphrase =
           networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
 
-        const stellarAsset = toStellarAsset(options.asset)
         const operation = Operation.payment({
           destination: options.to,
           asset: stellarAsset,
@@ -135,5 +135,8 @@ export function useSendPayment(): UseSendPaymentReturn {
 function toStellarAsset(asset: Asset): StellarAsset {
   if (isNativeAsset(asset)) return StellarAsset.native()
   if (isIssuedAsset(asset)) return new StellarAsset(asset.code, asset.issuer)
-  return StellarAsset.native() // fallback for liquidity_pool_shares
+  throw createStellarError(
+    "VALIDATION_ERROR",
+    `Unsupported asset: ${JSON.stringify(asset)}. ` + `Pass "XLM" or { code, issuer }.`
+  )
 }

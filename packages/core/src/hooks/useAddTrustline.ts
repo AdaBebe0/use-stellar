@@ -76,12 +76,12 @@ export function useAddTrustline(): UseAddTrustlineReturn {
       setResult(null)
 
       try {
+        const stellarAsset = new StellarAsset(options.asset.code, options.asset.issuer)
         const server = getHorizonServer(network)
         const sourceAcc = await server.loadAccount(wallet.address)
         const networkPassphrase =
           networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
 
-        const stellarAsset = new StellarAsset(options.asset.code, options.asset.issuer)
         const operation = Operation.changeTrust({
           asset: stellarAsset,
           limit: options.limit,
