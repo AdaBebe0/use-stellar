@@ -28,6 +28,32 @@ interface HorizonLikeResponse {
   data?: { extras?: { result_codes?: HorizonResultCodes } }
 }
 
+interface HorizonSubmissionResult {
+  hash: string
+  extras?: { result_codes?: HorizonResultCodes }
+}
+
+/** Classify a transaction that Horizon accepted but whose operations failed. */
+export function toSubmissionError(result: HorizonSubmissionResult): StellarError {
+  const operations = result.extras?.result_codes?.operations ?? []
+  const resultCodes = result.extras?.result_codes
+  let code: StellarErrorCode = "TRANSACTION_FAILED"
+
+  if (operations.includes("op_no_trust")) {
+    code = "NO_TRUSTLINE"
+  } else if (
+    operations.includes("op_underfunded") ||
+    resultCodes?.transaction === "tx_insufficient_balance"
+  ) {
+    code = "INSUFFICIENT_BALANCE"
+  }
+
+  return createStellarError(code, undefined, {
+    raw: result,
+    hash: result.hash,
+  })
+}
+
 function getResponse(error: unknown): HorizonLikeResponse | undefined {
   if (error && typeof error === "object" && "response" in error) {
     const response = (error as { response?: unknown }).response
