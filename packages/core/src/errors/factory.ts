@@ -23,9 +23,25 @@ interface HorizonResultCodes {
   operations?: string[]
 }
 
+/**
+ * Horizon speaks RFC 7807 problem details.
+ *
+ * `type` is a stable URI like `https://stellar.org/horizon-errors/not_found`,
+ * which is far more reliable than either the status code or the prose in
+ * `title` / `detail` — it does not move when a message is reworded and it does
+ * not vary by locale.
+ */
+interface HorizonProblemDetails {
+  type?: string
+  title?: string
+  detail?: string
+  status?: number
+  extras?: { result_codes?: HorizonResultCodes }
+}
+
 interface HorizonLikeResponse {
   status?: number
-  data?: { extras?: { result_codes?: HorizonResultCodes } }
+  data?: HorizonProblemDetails
 }
 
 interface HorizonSubmissionResult {
@@ -63,15 +79,72 @@ function getResponse(error: unknown): HorizonLikeResponse | undefined {
 }
 
 /**
+ * The trailing segment of a Horizon problem-details `type` URI.
+ *
+ * `https://stellar.org/horizon-errors/not_found` → `not_found`.
+ */
+function getProblemType(response: HorizonLikeResponse | undefined): string | undefined {
+  const type = response?.data?.type
+  if (typeof type !== "string" || type === "") return undefined
+
+  const segment = type.split("/").filter(Boolean).pop()
+  return segment?.toLowerCase()
+}
+
+/** Maps a Horizon problem-details type onto an error code, where one fits. */
+function fromProblemType(problemType: string | undefined): StellarErrorCode | undefined {
+  switch (problemType) {
+    case "not_found":
+      return "ACCOUNT_NOT_FOUND"
+    case "rate_limit_exceeded":
+      return "RATE_LIMITED"
+    case "timeout":
+    case "server_over_capacity":
+      return "NETWORK_ERROR"
+    default:
+      return undefined
+  }
+}
+
+/** Maps Horizon transaction/operation result codes onto an error code. */
+function fromResultCodes(resultCodes: HorizonResultCodes): StellarErrorCode | undefined {
+  const operations = resultCodes.operations ?? []
+  const transaction = resultCodes.transaction
+
+  // Operation codes are the most specific signal available.
+  if (operations.includes("op_no_trust")) return "NO_TRUSTLINE"
+  if (operations.includes("op_no_destination")) return "DESTINATION_NOT_FOUND"
+  if (operations.includes("op_underfunded")) return "INSUFFICIENT_BALANCE"
+
+  // Then transaction-level codes.
+  if (transaction === "tx_insufficient_balance") return "INSUFFICIENT_BALANCE"
+  if (transaction === "tx_bad_seq") return "SEQUENCE_MISMATCH"
+  if (transaction === "tx_insufficient_fee") return "FEE_TOO_LOW"
+  if (transaction === "tx_no_source_account") return "ACCOUNT_NOT_FOUND"
+
+  // Anything else that is not a success is a failure we cannot name further.
+  if (transaction && transaction !== "tx_success") return "TRANSACTION_FAILED"
+
+  return undefined
+}
+
+/**
  * Normalise any thrown value into a typed {@link StellarError}.
  *
  * Mapping precedence (most specific first):
  *  1. Already a `StellarError` → returned unchanged.
- *  2. Horizon transaction `result_codes` (`op_no_trust`, `op_underfunded`, …).
- *  3. HTTP status codes (`429` → rate limited, `404` → not found).
- *  4. Wallet message heuristics (user rejected / not installed).
- *  5. Transport/network failure heuristics.
- *  6. Fallback `UNKNOWN`, preserving the original message.
+ *  2. Horizon `result_codes` — operation codes first, then transaction codes.
+ *  3. Horizon problem-details `type` URI (RFC 7807).
+ *  4. HTTP status codes (`429` → rate limited, `404` → not found, `5xx`).
+ *  5. Wallet message heuristics, anchored to phrases wallets actually emit.
+ *  6. Transport/network failure heuristics.
+ *  7. Fallback `UNKNOWN`, preserving the original message.
+ *
+ * Steps 2 to 4 read structured fields. The heuristics below them exist only
+ * for errors that carry no structure at all — chiefly wallet extensions, which
+ * throw plain `Error`s with no status and no body. They are deliberately
+ * narrow: classification by substring is guessing, and a consumer branching on
+ * `err.code` renders a wrong UI with full confidence when the guess is wrong.
  */
 export function toStellarError(error: unknown): StellarError {
   // 1. Pass-through anything already typed.
@@ -85,44 +158,58 @@ export function toStellarError(error: unknown): StellarError {
 
   const rawMessage = error instanceof Error ? error.message : String(error)
   const response = getResponse(error)
-  const status = response?.status
+  const status = response?.status ?? response?.data?.status
   const resultCodes = response?.data?.extras?.result_codes
 
   // 2. Horizon transaction result codes — the most actionable signal.
   if (resultCodes) {
-    const operations = resultCodes.operations ?? []
-    if (operations.includes("op_no_trust")) {
-      return createStellarError("NO_TRUSTLINE", undefined, { raw: error })
-    }
-    if (
-      operations.includes("op_underfunded") ||
-      resultCodes.transaction === "tx_insufficient_balance"
-    ) {
-      return createStellarError("INSUFFICIENT_BALANCE", undefined, { raw: error })
-    }
-    if (resultCodes.transaction && resultCodes.transaction !== "tx_success") {
-      return createStellarError("TRANSACTION_FAILED", undefined, { raw: error })
+    const code = fromResultCodes(resultCodes)
+    if (code) {
+      return createStellarError(code, undefined, { raw: error })
     }
   }
 
-  // 3. HTTP status codes.
+  // 3. Problem-details type URI — stable across message rewordings and locales.
+  const problemCode = fromProblemType(getProblemType(response))
+  if (problemCode) {
+    return createStellarError(problemCode, undefined, { raw: error })
+  }
+
+  // 4. HTTP status codes.
   if (status === 429) {
     return createStellarError("RATE_LIMITED", undefined, { raw: error })
   }
-  if (status === 404 || /\b404\b/.test(rawMessage)) {
+  if (status === 404) {
     return createStellarError("ACCOUNT_NOT_FOUND", undefined, { raw: error })
   }
+  if (typeof status === "number" && status >= 500) {
+    // 502/503/504 are the gateway giving up, not the ledger rejecting anything.
+    return createStellarError("NETWORK_ERROR", undefined, { raw: error })
+  }
 
-  // 4. Wallet message heuristics (Freighter does not use status codes).
+  // 5. Wallet message heuristics.
+  //
+  // Only for errors with no structure to read — wallet extensions throw plain
+  // `Error`s. The phrases are anchored to what wallets actually emit. A bare
+  // "rejected" is deliberately absent: "Transaction rejected by the network"
+  // is a network rejection, and reporting it as a user cancellation produces
+  // the opposite UI from the one the situation calls for.
   const lower = rawMessage.toLowerCase()
-  if (
+  const isWalletCancellation =
     lower.includes("user declined") ||
     lower.includes("user rejected") ||
-    lower.includes("rejected") ||
-    lower.includes("denied")
-  ) {
+    lower.includes("user denied") ||
+    lower.includes("request rejected by user") ||
+    lower.includes("declined by the user") ||
+    lower.includes("rejected by the user") ||
+    lower.includes("denied by the user") ||
+    lower.includes("user cancelled") ||
+    lower.includes("user canceled")
+
+  if (isWalletCancellation) {
     return createStellarError("WALLET_REQUEST_REJECTED", undefined, { raw: error })
   }
+
   if (
     lower.includes("not installed") ||
     lower.includes("not detected") ||
@@ -131,7 +218,7 @@ export function toStellarError(error: unknown): StellarError {
     return createStellarError("WALLET_NOT_INSTALLED", undefined, { raw: error })
   }
 
-  // 5. Transport/network failures.
+  // 6. Transport/network failures.
   if (
     lower.includes("network error") ||
     lower.includes("network request failed") ||
@@ -145,6 +232,6 @@ export function toStellarError(error: unknown): StellarError {
     return createStellarError("NETWORK_ERROR", undefined, { raw: error })
   }
 
-  // 6. Fallback — keep the original message so nothing is silently swallowed.
+  // 7. Fallback — keep the original message so nothing is silently swallowed.
   return createStellarError("UNKNOWN", rawMessage || undefined, { raw: error })
 }

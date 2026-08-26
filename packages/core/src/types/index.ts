@@ -6,21 +6,38 @@ export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "../hooks/useAss
 
 /**
  * Represents the Stellar network environment.
+ *
+ * `"custom"` is any network this library ships no defaults for — a local
+ * quickstart or standalone container, or a private deployment. It carries no
+ * built-in endpoints or passphrase, so `networkConfig` must supply all three.
  */
-export type StellarNetwork = "testnet" | "mainnet"
+export type StellarNetwork = "testnet" | "mainnet" | "futurenet" | "custom"
 
 /**
  * Configuration details for a specific Stellar network.
+ *
+ * `networkPassphrase` is not decoration. It is mixed into the transaction hash
+ * before signing, which is what binds a signature to one network — the same
+ * envelope signed with the testnet passphrase is invalid on mainnet. Every
+ * hook that builds a transaction reads it from here, so there is one source of
+ * truth and no opportunity to sign against the wrong network.
  */
 export interface NetworkConfig {
   network: StellarNetwork
   horizonUrl: string
   sorobanUrl: string
+  networkPassphrase: string
 }
 
 /**
- * Partial override for custom Horizon / Soroban RPC endpoints.
- * Pass this to `StellarProvider` to bypass the built-in SDF defaults.
+ * Override for Horizon / Soroban RPC endpoints, and for the network
+ * passphrase.
+ *
+ * `networkPassphrase` is optional for the networks this library knows
+ * (`testnet`, `mainnet`, `futurenet`) and **required** for `network="custom"`.
+ * A custom network with no passphrase throws at provider render rather than
+ * silently defaulting — signing against the wrong network must not be
+ * reachable by accident.
  *
  * @example
  * // Private infrastructure or rate-limit avoidance:
@@ -31,25 +48,71 @@ export interface NetworkConfig {
  *     sorobanUrl: "https://rpc.my-node.com",
  *   }}
  * />
+ *
+ * @example
+ * // A local standalone / quickstart container:
+ * <StellarProvider
+ *   network="custom"
+ *   networkConfig={{
+ *     horizonUrl: "http://localhost:8000",
+ *     sorobanUrl: "http://localhost:8000/soroban/rpc",
+ *     networkPassphrase: "Standalone Network ; February 2017",
+ *   }}
+ * />
  */
 export interface CustomNetworkConfig {
   horizonUrl: string
   sorobanUrl: string
+  networkPassphrase?: string
 }
 
 /**
- * Pre-defined configurations for supported Stellar networks.
+ * The passphrase for each network this library ships defaults for.
+ *
+ * `custom` is deliberately absent — there is no such thing as a default
+ * passphrase for a network we know nothing about.
  */
-export const NETWORK_CONFIGS: Record<StellarNetwork, NetworkConfig> = {
+export const NETWORK_PASSPHRASES: Record<Exclude<StellarNetwork, "custom">, string> = {
+  testnet: "Test SDF Network ; September 2015",
+  mainnet: "Public Global Stellar Network ; September 2015",
+  futurenet: "Test SDF Future Network ; October 2022",
+}
+
+/**
+ * The passphrase for a network, or `undefined` for `"custom"`.
+ *
+ * Use this rather than indexing {@link NETWORK_PASSPHRASES} directly: a custom
+ * network genuinely has no known passphrase, and `undefined` says so instead
+ * of handing back the wrong one.
+ */
+export function getNetworkPassphrase(network: StellarNetwork): string | undefined {
+  return network === "custom" ? undefined : NETWORK_PASSPHRASES[network]
+}
+
+/**
+ * Pre-defined configurations for the networks with published endpoints.
+ *
+ * `custom` has no entry: its endpoints and passphrase come from
+ * `networkConfig`, and the provider throws if they are missing.
+ */
+export const NETWORK_CONFIGS: Record<Exclude<StellarNetwork, "custom">, NetworkConfig> = {
   testnet: {
     network: "testnet",
     horizonUrl: "https://horizon-testnet.stellar.org",
     sorobanUrl: "https://soroban-testnet.stellar.org",
+    networkPassphrase: NETWORK_PASSPHRASES.testnet,
   },
   mainnet: {
     network: "mainnet",
     horizonUrl: "https://horizon.stellar.org",
     sorobanUrl: "https://soroban.stellar.org",
+    networkPassphrase: NETWORK_PASSPHRASES.mainnet,
+  },
+  futurenet: {
+    network: "futurenet",
+    horizonUrl: "https://horizon-futurenet.stellar.org",
+    sorobanUrl: "https://rpc-futurenet.stellar.org",
+    networkPassphrase: NETWORK_PASSPHRASES.futurenet,
   },
 }
 
@@ -65,12 +128,12 @@ export type WalletType = "freighter" | "lobstr" | "albedo" | "rabet" | (string &
 /**
  * The network a wallet reports it is currently on.
  *
- * `"custom"` means the wallet reported a passphrase that is neither the SDF
- * testnet nor the SDF mainnet one — a private or standalone network. It is a
- * value, not an error: the wallet is simply somewhere this app does not
- * recognise, which `isNetworkMismatch` reports as a mismatch.
+ * `"custom"` means the wallet reported a passphrase this library ships no
+ * configuration for — a private or standalone network. It is a value, not an
+ * error: the wallet is simply somewhere the app does not recognise, which
+ * `isNetworkMismatch` reports as a mismatch.
  */
-export type WalletNetworkId = StellarNetwork | "custom"
+export type WalletNetworkId = StellarNetwork
 
 /**
  * The current state of the wallet connection.
@@ -183,9 +246,38 @@ export interface TransactionResult {
 }
 
 /**
+ * Fee controls shared by every hook that builds a Horizon transaction.
+ *
+ * Stellar prices transactions by auction: each ledger has limited capacity,
+ * and when more transactions are submitted than fit, the network takes the
+ * highest bidders and rejects the rest with `tx_insufficient_fee`.
+ *
+ * **A fee is a maximum bid, not a charge.** The network only ever takes what
+ * it needs to include your transaction, so bidding generously costs nothing in
+ * the common case and is what keeps a transaction landing during congestion.
+ */
+export interface FeeOptions {
+  /**
+   * Explicit fee in stroops, per operation. Wins over everything else.
+   *
+   * @example
+   * send({ to, asset: "XLM", amount: "10", fee: "10000" })
+   */
+  fee?: string
+  /**
+   * Multiplier applied to the network's current base fee, fetched from
+   * Horizon at build time. Defaults to {@link DEFAULT_FEE_MULTIPLIER}.
+   *
+   * @example
+   * send({ to, asset: "XLM", amount: "10", feeMultiplier: 10 })
+   */
+  feeMultiplier?: number
+}
+
+/**
  * Options for sending a payment transaction.
  */
-export interface SendPaymentOptions {
+export interface SendPaymentOptions extends FeeOptions {
   to: string
   asset: Asset
   amount: string
@@ -203,7 +295,7 @@ export interface SendPaymentResult {
 /**
  * Options for adding a trustline to an asset.
  */
-export interface AddTrustlineOptions {
+export interface AddTrustlineOptions extends FeeOptions {
   asset: IssuedAsset
   limit?: string
 }
@@ -505,37 +597,39 @@ export interface UsePaymentPathsReturn {
  * `mode` discriminates which amount is pinned and which slippage bound is
  * required. Both bounds are required — there is no permissive default.
  */
-export type PathPaymentOptions =
-  | {
-      mode: "strictSend"
-      destination: string
-      sendAsset: Asset
-      /** Exactly what leaves your account. */
-      sendAmount: string
-      destAsset: Asset
-      /** Required — the least the recipient will accept. Your slippage bound. */
-      destMin: string
-      /** Intermediate hops from `usePaymentPaths`. Empty means direct. */
-      path?: Asset[]
-      memo?: string
-      sendMax?: never
-      destAmount?: never
-    }
-  | {
-      mode: "strictReceive"
-      destination: string
-      sendAsset: Asset
-      /** Required — the most you will spend. Your slippage bound. */
-      sendMax: string
-      destAsset: Asset
-      /** Exactly what arrives at the destination. */
-      destAmount: string
-      /** Intermediate hops from `usePaymentPaths`. Empty means direct. */
-      path?: Asset[]
-      memo?: string
-      sendAmount?: never
-      destMin?: never
-    }
+export type PathPaymentOptions = FeeOptions &
+  (
+    | {
+        mode: "strictSend"
+        destination: string
+        sendAsset: Asset
+        /** Exactly what leaves your account. */
+        sendAmount: string
+        destAsset: Asset
+        /** Required — the least the recipient will accept. Your slippage bound. */
+        destMin: string
+        /** Intermediate hops from `usePaymentPaths`. Empty means direct. */
+        path?: Asset[]
+        memo?: string
+        sendMax?: never
+        destAmount?: never
+      }
+    | {
+        mode: "strictReceive"
+        destination: string
+        sendAsset: Asset
+        /** Required — the most you will spend. Your slippage bound. */
+        sendMax: string
+        destAsset: Asset
+        /** Exactly what arrives at the destination. */
+        destAmount: string
+        /** Intermediate hops from `usePaymentPaths`. Empty means direct. */
+        path?: Asset[]
+        memo?: string
+        sendAmount?: never
+        destMin?: never
+      }
+  )
 
 export interface UsePathPaymentReturn {
   pathPayment: (options: PathPaymentOptions) => Promise<TransactionResult>
@@ -543,4 +637,54 @@ export interface UsePathPaymentReturn {
   error: StellarError | null
   result: TransactionResult | null
   reset: () => void
+}
+
+// ── Soroban contract events ────────────────────────────────────────────────
+/**
+ * One event emitted by a Soroban contract — the on-chain equivalent of a log
+ * line, with structured topics and a data payload.
+ */
+export interface ContractEvent {
+  id: string
+  contractId: string
+  ledger: number
+  ledgerClosedAt: string
+  /** Decoded with `scValToNative`. */
+  topics: unknown[]
+  value: unknown
+  /** Raw XDR, for consumers that need it or when decoding failed. */
+  raw: { topics: string[]; value: string }
+  /** `true` when this event's topics or value could not be decoded. */
+  decodeFailed?: boolean
+}
+
+/**
+ * Options for `useContractEvents`.
+ */
+export interface UseContractEventsOptions {
+  /** Contracts to watch. An inline array literal is safe — see the hook docs. */
+  contractIds: string[]
+  /** Topic filter, per the RPC's matching rules. */
+  topics?: string[][]
+  /**
+   * Ledger to start from. Defaults to the RPC's latest ledger, so a fresh
+   * subscription reports only what happens from now on.
+   *
+   * RPC providers retain a limited ledger window — typically around 24 hours.
+   * A `startLedger` older than that window is an error, not an empty result.
+   */
+  startLedger?: number
+  /** Poll interval in ms (default 5000). There is no streaming endpoint. */
+  interval?: number
+  /** Maximum events kept in memory (default 200). Oldest are dropped first. */
+  bufferSize?: number
+  enabled?: boolean
+}
+
+export interface UseContractEventsReturn {
+  events: ContractEvent[]
+  latestLedger: number | null
+  loading: boolean
+  error: StellarError | null
+  clear: () => void
 }

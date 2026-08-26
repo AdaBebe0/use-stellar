@@ -1,6 +1,6 @@
 import { getWalletAdapter, hasWalletAdapter, registerWalletAdapter } from "./registry"
 import { WalletAdapterError, type WalletAdapter } from "./types"
-import { NETWORK_PASSPHRASES } from "./freighterAdapter"
+import { getNetworkPassphrase } from "../types"
 
 describe("wallet adapter registry", () => {
   it("returns the supported Freighter adapter", () => {
@@ -67,11 +67,11 @@ describe("registerWalletAdapter", () => {
           address: TEST_ADDRESS,
           wallet: type,
           network,
-          networkPassphrase: NETWORK_PASSPHRASES[network],
+          networkPassphrase: getNetworkPassphrase(network) ?? "",
         }
       },
       async getNetworkDetails(network) {
-        return { network, networkPassphrase: NETWORK_PASSPHRASES[network] }
+        return { network, networkPassphrase: getNetworkPassphrase(network) ?? "" }
       },
       async signTransaction() {
         return "signed-xdr"

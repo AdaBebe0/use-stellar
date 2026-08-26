@@ -46,21 +46,45 @@ export const WALLET_SESSION_STORAGE_KEY = "use-stellar:wallet-session"
 const StellarContext = createContext<StellarContextValue | null>(null)
 
 // ── Validation ─────────────────────────────────────────────────────────────
+/** Returns the built-in config for a network, or `undefined` for `"custom"`. */
+function getBuiltInConfig(network: StellarNetwork): NetworkConfig | undefined {
+  return network === "custom" ? undefined : NETWORK_CONFIGS[network]
+}
+
 /**
  * Validates a custom network config override and returns the merged
- * `NetworkConfig`. Throws a descriptive error if required URLs are missing
- * or obviously malformed so developers catch misconfiguration at startup.
+ * `NetworkConfig`, including the resolved `networkPassphrase`. Throws a
+ * descriptive error if anything required is missing or obviously malformed, so
+ * developers catch misconfiguration at startup.
+ *
+ * This is the single place a passphrase is resolved. Every hook that builds a
+ * transaction reads `networkConfig.networkPassphrase` rather than deciding for
+ * itself, because a passphrase chosen per-call-site is a passphrase that can
+ * disagree with itself — and a signature bound to the wrong network is
+ * rejected in a way nothing in the library would suspect.
  */
 function resolveNetworkConfig(
   network: StellarNetwork,
   override: CustomNetworkConfig | undefined
 ): NetworkConfig {
+  const builtIn = getBuiltInConfig(network)
+
   if (!override) {
+    if (!builtIn) {
+      throw new Error(
+        'use-stellar: network="custom" requires a networkConfig with ' +
+          "`horizonUrl`, `sorobanUrl`, and `networkPassphrase`. " +
+          'Example: { horizonUrl: "http://localhost:8000", ' +
+          'sorobanUrl: "http://localhost:8000/soroban/rpc", ' +
+          'networkPassphrase: "Standalone Network ; February 2017" }'
+      )
+    }
+
     // No override — use the built-in SDF defaults.
-    return NETWORK_CONFIGS[network]
+    return builtIn
   }
 
-  const { horizonUrl, sorobanUrl } = override
+  const { horizonUrl, sorobanUrl, networkPassphrase } = override
 
   if (!horizonUrl || typeof horizonUrl !== "string" || horizonUrl.trim() === "") {
     throw new Error(
@@ -78,10 +102,26 @@ function resolveNetworkConfig(
     )
   }
 
+  const hasPassphrase = typeof networkPassphrase === "string" && networkPassphrase.trim() !== ""
+
+  // Never default a passphrase for a network we ship no defaults for. Signing
+  // with a silently-chosen passphrase must not be reachable.
+  if (!hasPassphrase && !builtIn) {
+    throw new Error(
+      'use-stellar: Invalid networkConfig — `networkPassphrase` is required when network="custom". ' +
+        "There is no default passphrase for a network this library ships no configuration for, and " +
+        "guessing one would sign transactions that the target network rejects. " +
+        'Example: { networkPassphrase: "Standalone Network ; February 2017" }'
+    )
+  }
+
   return {
     network,
     horizonUrl: horizonUrl.trim(),
     sorobanUrl: sorobanUrl.trim(),
+    networkPassphrase: hasPassphrase
+      ? (networkPassphrase as string).trim()
+      : (builtIn as NetworkConfig).networkPassphrase,
   }
 }
 
@@ -94,25 +134,40 @@ export interface StellarProviderProps {
    * The Stellar network environment.
    *
    * - **Optional**: If omitted or invalid, it defaults to `"testnet"`.
-   * - **Values**: `"testnet"` (pre-configured to SDF testnet Horizon/Soroban RPC endpoints)
-   *             or `"mainnet"` (pre-configured to SDF mainnet Horizon/Soroban RPC endpoints).
-   * - **Impact**: Configures Horizon and Soroban RPC URL endpoints via `NETWORK_CONFIGS` for
-   *             all downstream hooks. Determines where transactions are queried and submitted.
+   * - **Values**: `"testnet"`, `"mainnet"`, and `"futurenet"` are pre-configured with SDF
+   *             Horizon/Soroban RPC endpoints and the matching network passphrase.
+   *             `"custom"` ships no defaults — supply `networkConfig` with all three fields.
+   * - **Impact**: Configures Horizon and Soroban RPC URL endpoints via `NETWORK_CONFIGS`, and
+   *             resolves the network passphrase every transaction is signed against, for all
+   *             downstream hooks.
    */
   network?: StellarNetwork
   /**
-   * Optional override for Horizon and Soroban RPC endpoints.
-   * When omitted, the built-in SDF public endpoints are used.
+   * Optional override for Horizon and Soroban RPC endpoints, and for the
+   * network passphrase. When omitted, the built-in SDF endpoints are used.
    *
    * Both `horizonUrl` and `sorobanUrl` are required when this prop is provided.
+   * `networkPassphrase` is optional for a known network and required when
+   * `network="custom"` — a custom network with no passphrase throws at render.
    *
    * @example
-   * // Custom private node:
+   * // Custom private node on a known network:
    * <StellarProvider
    *   network="mainnet"
    *   networkConfig={{
    *     horizonUrl: "https://horizon.my-node.com",
    *     sorobanUrl: "https://rpc.my-node.com",
+   *   }}
+   * />
+   *
+   * @example
+   * // A local standalone container:
+   * <StellarProvider
+   *   network="custom"
+   *   networkConfig={{
+   *     horizonUrl: "http://localhost:8000",
+   *     sorobanUrl: "http://localhost:8000/soroban/rpc",
+   *     networkPassphrase: "Standalone Network ; February 2017",
    *   }}
    * />
    */

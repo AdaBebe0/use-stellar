@@ -5,7 +5,6 @@ import {
   xdr,
   scValToNative,
   TransactionBuilder,
-  Networks,
   BASE_FEE,
   Account,
 } from "@stellar/stellar-sdk"
@@ -168,7 +167,7 @@ export function useSorobanContract<T = unknown>({
   // directly would re-run the simulation forever, so both are reduced to
   // primitives here.
   const argsKey = args.map(describeArg).join("|")
-  const { sorobanUrl, network: configuredNetwork } = networkConfig
+  const { sorobanUrl, networkPassphrase } = networkConfig
 
   // A spec is usually built inline (`spec={new contract.Spec(entries)}`), so
   // depending on the object itself would re-run the simulation on every
@@ -227,9 +226,12 @@ export function useSorobanContract<T = unknown>({
       const operation = contract.call(method, ...scArgs)
 
       const simulationSource = new Account(source, "0")
-      const networkPassphrase = configuredNetwork === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
 
       const tx = new TransactionBuilder(simulationSource, {
+        // This envelope is only ever simulated, never signed or submitted, so
+        // the fee is a placeholder the RPC ignores — there is no auction to
+        // bid in. A real Soroban submission pays a resource fee derived from
+        // the simulation result; that path belongs to the write hook.
         fee: BASE_FEE,
         networkPassphrase,
       })
@@ -274,7 +276,7 @@ export function useSorobanContract<T = unknown>({
       }
     }
     // `args` is covered by `argsKey`; `networkConfig` by its two primitives.
-  }, [contractId, method, argsKey, sorobanUrl, configuredNetwork, source, hasSpec])
+  }, [contractId, method, argsKey, sorobanUrl, networkPassphrase, source, hasSpec])
 
   useEffect(() => {
     callContract()

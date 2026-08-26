@@ -8,6 +8,8 @@ import {
   DEFAULT_ERROR_MESSAGES,
   STELLAR_ERROR_CODES,
 } from "./index"
+import * as fixtures from "../__tests__/fixtures/horizon-errors"
+import { horizonError as fixtureError } from "../__tests__/fixtures/horizon-errors"
 
 // Helper to fabricate a Horizon/Axios style error.
 function horizonError(options: {
@@ -134,20 +136,24 @@ describe("toStellarError — HTTP status codes", () => {
     expect(toStellarError(horizonError({ status: 404 })).code).toBe("ACCOUNT_NOT_FOUND")
   })
 
-  it("maps a '404' message with no response object → ACCOUNT_NOT_FOUND", () => {
-    expect(toStellarError(new Error("Request failed with status code 404")).code).toBe(
-      "ACCOUNT_NOT_FOUND"
-    )
+  it("does not classify a status-less message containing '404' as ACCOUNT_NOT_FOUND", () => {
+    // A message that merely mentions 404 is not evidence of a missing account.
+    // Matching on it turned CORS failures, stack traces with line 404, and
+    // wrapped errors quoting an unrelated 404 into "account not found".
+    expect(toStellarError(new Error("Request failed with status code 404")).code).toBe("UNKNOWN")
   })
 })
 
 describe("toStellarError — wallet heuristics", () => {
-  it.each(["User declined access", "Request was rejected by the user", "Access denied"])(
-    "maps %p → WALLET_REQUEST_REJECTED",
-    message => {
-      expect(toStellarError(new Error(message)).code).toBe("WALLET_REQUEST_REJECTED")
-    }
-  )
+  it.each([
+    "User declined access",
+    "Request was rejected by the user",
+    "User rejected the request",
+    "User denied the signature request",
+    "User cancelled the request",
+  ])("maps %p → WALLET_REQUEST_REJECTED", message => {
+    expect(toStellarError(new Error(message)).code).toBe("WALLET_REQUEST_REJECTED")
+  })
 
   it.each(["Freighter is not installed", "Wallet not detected", "Freighter wallet not found"])(
     "maps %p → WALLET_NOT_INSTALLED",
@@ -203,5 +209,97 @@ describe("toStellarError — fallback & pass-through", () => {
   it("always attaches the raw error for debugging", () => {
     const raw = horizonError({ status: 429 })
     expect(toStellarError(raw).raw).toBe(raw)
+  })
+})
+
+// ── Classification against recorded Horizon bodies ─────────────────────────
+describe("toStellarError — recorded Horizon responses", () => {
+  it("classifies a real 404 body from its problem-details type", () => {
+    expect(toStellarError(fixtureError(fixtures.NOT_FOUND)).code).toBe("ACCOUNT_NOT_FOUND")
+  })
+
+  it("maps op_no_destination → DESTINATION_NOT_FOUND", () => {
+    expect(toStellarError(fixtureError(fixtures.OP_NO_DESTINATION)).code).toBe(
+      "DESTINATION_NOT_FOUND"
+    )
+  })
+
+  it("maps tx_bad_seq → SEQUENCE_MISMATCH", () => {
+    expect(toStellarError(fixtureError(fixtures.TX_BAD_SEQ)).code).toBe("SEQUENCE_MISMATCH")
+  })
+
+  it("maps tx_insufficient_fee → FEE_TOO_LOW, not the generic failure", () => {
+    expect(toStellarError(fixtureError(fixtures.TX_INSUFFICIENT_FEE)).code).toBe("FEE_TOO_LOW")
+  })
+
+  it("maps op_no_trust → NO_TRUSTLINE", () => {
+    expect(toStellarError(fixtureError(fixtures.OP_NO_TRUST)).code).toBe("NO_TRUSTLINE")
+  })
+
+  it("maps op_underfunded → INSUFFICIENT_BALANCE", () => {
+    expect(toStellarError(fixtureError(fixtures.OP_UNDERFUNDED)).code).toBe("INSUFFICIENT_BALANCE")
+  })
+
+  it("maps a rate-limit body → RATE_LIMITED", () => {
+    expect(toStellarError(fixtureError(fixtures.RATE_LIMIT_EXCEEDED)).code).toBe("RATE_LIMITED")
+  })
+
+  it("maps a gateway timeout → NETWORK_ERROR, not a ledger failure", () => {
+    expect(toStellarError(fixtureError(fixtures.TIMEOUT)).code).toBe("NETWORK_ERROR")
+  })
+
+  it("maps server-over-capacity → NETWORK_ERROR", () => {
+    expect(toStellarError(fixtureError(fixtures.SERVER_OVER_CAPACITY)).code).toBe("NETWORK_ERROR")
+  })
+
+  it("does not mistake a malformed-transaction body for a missing account", () => {
+    expect(toStellarError(fixtureError(fixtures.TRANSACTION_MALFORMED)).code).not.toBe(
+      "ACCOUNT_NOT_FOUND"
+    )
+  })
+
+  it("does not mistake a bad-request body for a missing account", () => {
+    expect(toStellarError(fixtureError(fixtures.BAD_REQUEST)).code).not.toBe("ACCOUNT_NOT_FOUND")
+  })
+
+  it("preserves the original error on `raw` for every classification", () => {
+    const original = fixtureError(fixtures.TX_BAD_SEQ)
+    expect(toStellarError(original).raw).toBe(original)
+  })
+})
+
+// ── The substring traps this issue exists to close ─────────────────────────
+describe("toStellarError — substring traps", () => {
+  it.each([
+    "CORS request to https://example.com/assets/404.png was blocked",
+    "TypeError: undefined is not a function\n    at Module._compile (module.js:404:12)",
+    'Wrapped: inner service replied "404 not found" for an unrelated resource',
+  ])("does not classify %p as ACCOUNT_NOT_FOUND", message => {
+    expect(toStellarError(new Error(message)).code).not.toBe("ACCOUNT_NOT_FOUND")
+  })
+
+  it.each([
+    "Transaction rejected by the network",
+    "Connection rejected",
+    "The peer rejected the handshake",
+  ])("does not classify %p as a wallet cancellation", message => {
+    // A network rejection and a user cancellation need opposite UI: one is
+    // "try again", the other is "you cancelled".
+    expect(toStellarError(new Error(message)).code).not.toBe("WALLET_REQUEST_REJECTED")
+  })
+
+  it("still classifies a real wallet cancellation", () => {
+    expect(toStellarError(new Error("User declined access")).code).toBe("WALLET_REQUEST_REJECTED")
+    expect(toStellarError(new Error("User rejected the request")).code).toBe(
+      "WALLET_REQUEST_REJECTED"
+    )
+  })
+
+  it("reads structured fields even when the message would mislead", () => {
+    // The message says "rejected", but the body says the sequence was stale.
+    const error = fixtureError(fixtures.TX_BAD_SEQ)
+    error.message = "Transaction rejected"
+
+    expect(toStellarError(error).code).toBe("SEQUENCE_MISMATCH")
   })
 })
