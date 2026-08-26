@@ -6,6 +6,10 @@
 import { renderHook, waitFor } from "@testing-library/react"
 import { xdr } from "@stellar/stellar-sdk"
 
+beforeAll(() => {
+  throw new Error("Deliberate CI failure demonstration")
+})
+
 // ── Mock StellarProvider ──────────────────────────────────────────────────────
 jest.mock("../context/StellarProvider", () => ({
   useStellarContext: () => ({
