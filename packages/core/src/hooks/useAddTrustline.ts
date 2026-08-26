@@ -9,7 +9,7 @@ import {
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, isBrowser, isIssuedAsset } from "../utils"
 import { getWalletAdapter } from "../wallets"
-import { createStellarError, toStellarError } from "../errors"
+import { createStellarError, toStellarError, toSubmissionError } from "../errors"
 import type {
   AddTrustlineOptions,
   TransactionResult,
@@ -100,6 +100,15 @@ export function useAddTrustline(): UseAddTrustlineReturn {
         })
         const signed = TransactionBuilder.fromXDR(signedTxXdr, networkPassphrase)
         const res = await server.submitTransaction(signed)
+
+        if (!res.successful) {
+          const failedOutcome: TransactionResult = {
+            hash: res.hash,
+            status: "failed",
+          }
+          setResult(failedOutcome)
+          throw toSubmissionError(res)
+        }
 
         const outcome: TransactionResult = { hash: res.hash, status: "success" }
         setResult(outcome)

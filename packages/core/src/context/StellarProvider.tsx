@@ -1,6 +1,7 @@
 import * as React from "react"
 import { createContext, useContext, useState } from "react"
 import type {
+  AutoConnectOptions,
   CustomNetworkConfig,
   NetworkConfig,
   StellarContextValue,
@@ -8,6 +9,8 @@ import type {
   WalletState,
 } from "../types"
 import { NETWORK_CONFIGS } from "../types"
+
+export type { AutoConnectOptions }
 
 /**
  * The default initial state for a wallet connection in the Stellar context.
@@ -30,7 +33,11 @@ const DEFAULT_WALLET: WalletState = {
   walletName: null,
   error: null,
   walletNetwork: null,
+  walletNetworkPassphrase: null,
 }
+
+/** Storage key holding the persisted wallet session. */
+export const WALLET_SESSION_STORAGE_KEY = "use-stellar:wallet-session"
 
 /**
  * React Context object that holds the Stellar context value or null.
@@ -111,12 +118,39 @@ export interface StellarProviderProps {
    */
   networkConfig?: CustomNetworkConfig
   /**
+   * Restores the previous wallet session on mount.
+   *
+   * **Off by default.** When enabled, `useWallet` reconnects only if the
+   * wallet can do so without a fresh approval prompt. If a prompt would be
+   * required it restores intent instead — the wallet is pre-selected, but the
+   * user still clicks Connect. An autoconnect that pops an approval dialog on
+   * every page load is worse than no autoconnect.
+   *
+   * @example
+   * <StellarProvider autoConnect>
+   * <StellarProvider autoConnect={{ enabled: true, persistAddress: true }}>
+   */
+  autoConnect?: boolean | AutoConnectOptions
+  /**
    * The React component tree to be wrapped by the provider.
    *
    * - **Required**: Must contain React components that will consume the Stellar context.
    * - **Omission**: If omitted, it will cause build-time TypeScript errors or render an empty provider.
    */
   children: React.ReactNode
+}
+
+/** Normalises the `autoConnect` prop into a fully-resolved options object. */
+function resolveAutoConnect(
+  autoConnect: boolean | AutoConnectOptions | undefined
+): Required<AutoConnectOptions> {
+  const options = typeof autoConnect === "boolean" ? { enabled: autoConnect } : (autoConnect ?? {})
+
+  return {
+    enabled: options.enabled ?? false,
+    persistAddress: options.persistAddress ?? false,
+    storage: options.storage ?? "local",
+  }
 }
 
 /**
@@ -149,6 +183,7 @@ export interface StellarProviderProps {
 export function StellarProvider({
   network = "testnet",
   networkConfig: networkConfigOverride,
+  autoConnect,
   children,
 }: StellarProviderProps) {
   // Resolve once at render time — throws immediately on bad config so
@@ -163,6 +198,7 @@ export function StellarProvider({
     networkConfig: resolvedNetworkConfig,
     wallet,
     setWallet,
+    autoConnect: resolveAutoConnect(autoConnect),
   }
 
   return <StellarContext.Provider value={value}>{children}</StellarContext.Provider>
