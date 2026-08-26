@@ -1,13 +1,8 @@
 import { useState, useCallback } from "react"
-import {
-  TransactionBuilder,
-  Networks,
-  BASE_FEE,
-  Operation,
-  Asset as StellarAsset,
-} from "@stellar/stellar-sdk"
+import { TransactionBuilder, Operation, Asset as StellarAsset } from "@stellar/stellar-sdk"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, isBrowser, isIssuedAsset } from "../utils"
+import { asFeeSource, resolveFee } from "../utils/fees"
 import { getWalletAdapter } from "../wallets"
 import { createStellarError, toStellarError, toSubmissionError } from "../errors"
 import type {
@@ -76,10 +71,12 @@ export function useAddTrustline(): UseAddTrustlineReturn {
       setResult(null)
 
       try {
-        const server = getHorizonServer(network)
+        const server = getHorizonServer(networkConfig)
         const sourceAcc = await server.loadAccount(wallet.address)
-        const networkPassphrase =
-          networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
+        // Resolved once by the provider, so a signature can never be bound to
+        // a network the caller did not configure.
+        const { networkPassphrase } = networkConfig
+        const fee = await resolveFee(asFeeSource(server), options)
 
         const stellarAsset = new StellarAsset(options.asset.code, options.asset.issuer)
         const operation = Operation.changeTrust({
@@ -87,7 +84,7 @@ export function useAddTrustline(): UseAddTrustlineReturn {
           limit: options.limit,
         })
 
-        const tx = new TransactionBuilder(sourceAcc, { fee: BASE_FEE, networkPassphrase })
+        const tx = new TransactionBuilder(sourceAcc, { fee, networkPassphrase })
           .addOperation(operation)
           .setTimeout(30)
           .build()

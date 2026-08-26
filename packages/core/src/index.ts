@@ -29,6 +29,7 @@ export type {
 export { useSorobanContract, ANONYMOUS_SIMULATION_SOURCE } from "./hooks/useSorobanContract"
 export type { UseSorobanContractReturn } from "./hooks/useSorobanContract"
 export { usePaymentPaths } from "./hooks/usePaymentPaths"
+export { useContractEvents } from "./hooks/useContractEvents"
 export { usePathPayment } from "./hooks/usePathPayment"
 export { usePayments } from "./hooks/usePayments"
 export { useTransactionHistory } from "./hooks/useTransactionHistory"
@@ -64,6 +65,8 @@ export {
 export type { StellarErrorCode, StellarErrorOptions } from "./errors"
 
 // ── Utilities ────────────────────────────────────────────────────────────
+export { DEFAULT_FEE_MULTIPLIER } from "./utils/fees"
+export { NETWORK_CONFIGS, getNetworkPassphrase } from "./types"
 export {
   isBrowser,
   isValidAssetCode,
@@ -96,6 +99,10 @@ export type {
   NormalizedPayment,
   ContractCallOptions,
   ContractSpecLike,
+  ContractEvent,
+  UseContractEventsOptions,
+  UseContractEventsReturn,
+  FeeOptions,
   PaymentPath,
   UsePaymentPathsOptions,
   UsePaymentPathsReturn,

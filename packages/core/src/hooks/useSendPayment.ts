@@ -1,14 +1,8 @@
 import { useState, useCallback } from "react"
-import {
-  TransactionBuilder,
-  Networks,
-  BASE_FEE,
-  Operation,
-  Asset as StellarAsset,
-  Memo,
-} from "@stellar/stellar-sdk"
+import { TransactionBuilder, Operation, Asset as StellarAsset, Memo } from "@stellar/stellar-sdk"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, isNativeAsset, isIssuedAsset, isBrowser } from "../utils"
+import { asFeeSource, resolveFee } from "../utils/fees"
 import { getWalletAdapter } from "../wallets"
 import { createStellarError, toStellarError, toSubmissionError } from "../errors"
 import type { SendPaymentOptions, SendPaymentResult, Asset, StellarError } from "../types"
@@ -24,11 +18,22 @@ export interface UseSendPaymentReturn {
 /**
  * Builds, signs, and submits a payment transaction to the Stellar network.
  *
+ * The fee is bid from the network's current base fee, multiplied by
+ * {@link DEFAULT_FEE_MULTIPLIER}, rather than pinned to the SDK's `BASE_FEE`
+ * constant — that constant is the network minimum, which is rejected during
+ * congestion. A fee is a maximum bid, not a charge: the network takes only
+ * what it needs, so a generous bid costs nothing on a quiet ledger.
+ *
  * @returns `{ send, loading, error, result, reset }`
  *
  * @example
  * const { send, loading } = useSendPayment()
  * await send({ to: "G...", asset: "XLM", amount: "10" })
+ *
+ * @example
+ * // Bid harder during known congestion, or pin the fee exactly.
+ * await send({ to: "G...", asset: "XLM", amount: "10", feeMultiplier: 50 })
+ * await send({ to: "G...", asset: "XLM", amount: "10", fee: "100000" })
  */
 export function useSendPayment(): UseSendPaymentReturn {
   const { network, networkConfig, wallet } = useStellarContext()
@@ -70,10 +75,12 @@ export function useSendPayment(): UseSendPaymentReturn {
       setResult(null)
 
       try {
-        const server = getHorizonServer(network)
+        const server = getHorizonServer(networkConfig)
         const sourceAcc = await server.loadAccount(wallet.address)
-        const networkPassphrase =
-          networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
+        // Resolved once by the provider, so a signature can never be bound to
+        // a network the caller did not configure.
+        const { networkPassphrase } = networkConfig
+        const fee = await resolveFee(asFeeSource(server), options)
 
         const stellarAsset = toStellarAsset(options.asset)
         const operation = Operation.payment({
@@ -83,7 +90,7 @@ export function useSendPayment(): UseSendPaymentReturn {
         })
 
         const builder = new TransactionBuilder(sourceAcc, {
-          fee: BASE_FEE,
+          fee,
           networkPassphrase,
         }).addOperation(operation)
 

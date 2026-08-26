@@ -1,14 +1,8 @@
 import { useState, useCallback } from "react"
-import {
-  TransactionBuilder,
-  Networks,
-  BASE_FEE,
-  Operation,
-  Asset as StellarAsset,
-  Memo,
-} from "@stellar/stellar-sdk"
+import { TransactionBuilder, Operation, Asset as StellarAsset, Memo } from "@stellar/stellar-sdk"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, isNativeAsset, isIssuedAsset, isBrowser } from "../utils"
+import { asFeeSource, resolveFee } from "../utils/fees"
 import { getWalletAdapter } from "../wallets"
 import { createStellarError, toStellarError } from "../errors"
 import type {
@@ -232,10 +226,12 @@ export function usePathPayment(): UsePathPaymentReturn {
       setResult(null)
 
       try {
-        const server = getHorizonServer(network)
+        const server = getHorizonServer(networkConfig)
         const sourceAcc = await server.loadAccount(wallet.address)
-        const networkPassphrase =
-          networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
+        // Resolved once by the provider, so a signature can never be bound to
+        // a network the caller did not configure.
+        const { networkPassphrase } = networkConfig
+        const fee = await resolveFee(asFeeSource(server), options)
 
         const sendAsset = toStellarAsset(options.sendAsset, "sendAsset")
         const destAsset = toStellarAsset(options.destAsset, "destAsset")
@@ -265,7 +261,7 @@ export function usePathPayment(): UsePathPaymentReturn {
               })
 
         const builder = new TransactionBuilder(sourceAcc, {
-          fee: BASE_FEE,
+          fee,
           networkPassphrase,
         }).addOperation(operation)
 

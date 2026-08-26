@@ -18,6 +18,8 @@ let strictReceiveOps: Record<string, unknown>[] = []
 let submitResponse: Record<string, unknown> = {}
 let submitError: unknown = null
 let signCalls = 0
+/** The base fee Horizon reports; the fee strategy multiplies this. */
+let baseFee = 100
 
 jest.mock("@stellar/stellar-sdk", () => {
   class MockAsset {
@@ -82,6 +84,7 @@ jest.mock("../utils", () => {
     ...actual,
     isBrowser: () => true,
     getHorizonServer: () => ({
+      fetchBaseFee: async () => baseFee,
       loadAccount: async () => ({ accountId: () => TEST_ADDRESS }),
       submitTransaction: async () => {
         if (submitError) throw submitError
@@ -143,6 +146,7 @@ beforeEach(() => {
   strictSendOps = []
   strictReceiveOps = []
   signCalls = 0
+  baseFee = 100
   submitError = null
   submitResponse = { hash: "abc123", successful: true, ledger: 42 }
 

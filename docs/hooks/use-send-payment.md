@@ -77,6 +77,8 @@ call the `send` function it returns with a `SendPaymentOptions` object.
 | `asset`  | `Asset`  | Yes      | The asset to send. Use the string `"XLM"` for the native asset, or `{ code, issuer }` for an issued asset. |
 | `amount` | `string` | Yes      | The amount to send, as a string. See [Why amount must be a string](#why-amount-must-be-a-string). |
 | `memo`   | `string` | No       | An optional text memo attached to the transaction.                          |
+| `fee`    | `string` | No       | Explicit fee in stroops, per operation. Wins over `feeMultiplier`. See [Transaction fees](#transaction-fees). |
+| `feeMultiplier` | `number` | No | Multiplies the network base fee fetched from Horizon. Defaults to `10`.  |
 
 ## Return values
 
@@ -224,6 +226,81 @@ function SendWithRejectionHandling() {
   )
 }
 ```
+
+## Transaction fees
+
+Stellar prices transactions by auction. Each ledger has limited capacity; when
+more transactions are submitted than fit, the network takes the highest bidders
+and rejects the rest with `tx_insufficient_fee`.
+
+**A fee is a maximum bid, not a charge.** This is the part that is not obvious,
+and it changes how you should think about the number. The network only ever
+takes what it actually needs to include your transaction — bidding 10x the
+minimum on a quiet ledger still costs the minimum. You are stating a ceiling,
+not paying a price.
+
+So the trade is lopsided. Bidding low saves nothing measurable and fails under
+congestion; bidding high costs nothing measurable and survives it.
+
+### The default
+
+`useSendPayment` fetches the network's current base fee from Horizon and
+multiplies it by **10** (`DEFAULT_FEE_MULTIPLIER`).
+
+On a quiet ledger the base fee is 100 stroops, so the default bid is 1,000
+stroops — 0.0001 XLM — and the network takes 100 of it. During surge pricing
+that same bid is what keeps the transaction landing instead of coming back
+rejected.
+
+The default is deliberately *not* the SDK's `BASE_FEE` constant. That constant
+is the network minimum: the floor of the auction, not a sensible bid. A
+transaction built at the floor is the first one dropped when a ledger fills.
+
+### Overriding it
+
+```tsx
+const { send } = useSendPayment()
+
+// Bid harder during known congestion.
+await send({ to, asset: "XLM", amount: "10", feeMultiplier: 50 })
+
+// Or pin the fee exactly, in stroops. This wins over everything else.
+await send({ to, asset: "XLM", amount: "10", fee: "100000" })
+```
+
+| Option | Type | Description |
+| :--- | :--- | :--- |
+| `fee` | `string` | Explicit fee in stroops, per operation. Used verbatim; no multiplier is applied and Horizon is not asked for a base fee. |
+| `feeMultiplier` | `number` | Multiplies the base fee fetched from Horizon. Defaults to `10`. |
+
+Precedence: `fee` → `feeMultiplier` × fetched base fee → `10` × fetched base fee.
+
+### When the base fee cannot be fetched
+
+If Horizon cannot be reached to read the current base fee, the call fails with
+a `NETWORK_ERROR` rather than falling back to the network minimum.
+
+That is on purpose. The conditions that make Horizon unreachable overlap with
+the conditions that make a minimum-fee transaction fail, so falling back would
+submit the least competitive bid possible at exactly the worst moment — and do
+it silently. Pass an explicit `fee` if you need to proceed without Horizon.
+
+### When the bid was too low anyway
+
+A transaction rejected for its fee surfaces as `FEE_TOO_LOW`, not a generic
+failure:
+
+```tsx
+const { send, error } = useSendPayment()
+
+if (error?.code === "FEE_TOO_LOW") {
+  // "The fee was too low for the current network conditions. Retry with a
+  //  higher fee or feeMultiplier."
+}
+```
+
+Retry with a higher `feeMultiplier`. Fee bumping — resubmitting an
+already-signed envelope at a higher fee — is not supported yet.
 
 ## What happens when Freighter opens
 
