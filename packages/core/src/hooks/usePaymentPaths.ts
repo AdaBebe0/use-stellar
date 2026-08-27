@@ -159,6 +159,7 @@ export function usePaymentPaths(options: UsePaymentPathsOptions): UsePaymentPath
   // Monotonic id used to drop out-of-order responses and any response that
   // lands after unmount.
   const requestRef = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Depend on asset primitives, not the objects themselves. An inline
   // `sourceAsset={{ code, issuer }}` prop is a new object every render, and
@@ -169,7 +170,15 @@ export function usePaymentPaths(options: UsePaymentPathsOptions): UsePaymentPath
   const fetchPaths = useCallback(async () => {
     if (!enabled) return
 
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
     const fetchId = ++requestRef.current
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
 
@@ -219,12 +228,16 @@ export function usePaymentPaths(options: UsePaymentPathsOptions): UsePaymentPath
       setLastUpdated(new Date())
     } catch (err) {
       if (fetchId !== requestRef.current) return
-      setPaths([])
-      setLastUpdated(null)
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setPaths([])
+        setLastUpdated(null)
+        setError(stellarError)
+      }
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
     // Asset objects are covered by their primitive keys above.
@@ -257,6 +270,10 @@ export function usePaymentPaths(options: UsePaymentPathsOptions): UsePaymentPath
       if (id) clearInterval(id)
       // Cancel any in-flight request so a late or out-of-order response cannot
       // update an unmounted component.
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchPaths, enabled, watch, interval])

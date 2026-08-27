@@ -89,7 +89,7 @@ function toPathPaymentError(error: unknown, mode: PathPaymentOptions["mode"]): S
     )
   }
 
-  return toStellarError(error)
+  return toStellarError(error) ?? createStellarError("UNKNOWN", "Unknown error occurred")
 }
 
 /**

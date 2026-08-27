@@ -17,6 +17,7 @@ export function useFederationLookup({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
   const requestRef = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetchFederation = useCallback(async () => {
     const normalizedAddress = typeof address === "string" ? address.trim() : null
@@ -37,11 +38,21 @@ export function useFederationLookup({
       return
     }
 
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
     const fetchId = ++requestRef.current
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
 
     try {
+      // Note: Federation.Server.resolve doesn't support abort signals directly
+      // in the current SDK version, but we still track the controller for future use
       const raw = await Federation.Server.resolve(normalizedAddress)
       if (fetchId !== requestRef.current) return
 
@@ -53,11 +64,15 @@ export function useFederationLookup({
       })
     } catch (err) {
       if (fetchId !== requestRef.current) return
-      setRecord(null)
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setRecord(null)
+        setError(stellarError)
+      }
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
   }, [address])
@@ -66,6 +81,10 @@ export function useFederationLookup({
     fetchFederation()
 
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchFederation])

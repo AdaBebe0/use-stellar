@@ -39,6 +39,7 @@ export function usePayments({
   const prevRef = useRef<(() => Promise<Horizon.ServerApi.CollectionPage<PaymentRecord>>) | null>(
     null
   )
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const [hasNext, setHasNext] = useState(false)
   const [hasPrev, setHasPrev] = useState(false)
@@ -50,6 +51,14 @@ export function usePayments({
       setHasPrev(false)
       return
     }
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     setLoading(true)
     setError(null)
@@ -72,15 +81,28 @@ export function usePayments({
       setHasNext(res.records.length >= limit)
       setHasPrev(!!cursor)
     } catch (err) {
-      setPayments([])
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setPayments([])
+        setError(stellarError)
+      }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [resolvedAddress, network, limit, order, cursor])
 
   const fetchNext = useCallback(async () => {
     if (!nextRef.current) return
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
     try {
@@ -94,15 +116,28 @@ export function usePayments({
       setHasNext(res.records.length >= limit)
       setHasPrev(true)
     } catch (err) {
-      setPayments([])
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setPayments([])
+        setError(stellarError)
+      }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [resolvedAddress, limit])
 
   const fetchPrev = useCallback(async () => {
     if (!prevRef.current) return
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
     try {
@@ -116,15 +151,26 @@ export function usePayments({
       setHasNext(true)
       setHasPrev(res.records.length >= limit)
     } catch (err) {
-      setPayments([])
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setPayments([])
+        setError(stellarError)
+      }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [resolvedAddress, limit])
 
   useEffect(() => {
     fetchPayments()
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
   }, [fetchPayments])
 
   return {

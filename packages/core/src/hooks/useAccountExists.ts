@@ -15,8 +15,14 @@ export function useAccountExists({
   const [error, setError] = useState<UseAccountExistsReturn["error"]>(null)
 
   const requestRef = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetchExists = useCallback(async () => {
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
     const fetchId = ++requestRef.current
 
     if (!address) {
@@ -38,6 +44,9 @@ export function useAccountExists({
       return
     }
 
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     try {
       const server = getHorizonServer(network)
       await server.loadAccount(address)
@@ -51,22 +60,18 @@ export function useAccountExists({
 
       const stellarError = toStellarError(err)
 
-      if (stellarError.code === "ACCOUNT_NOT_FOUND") {
+      if (stellarError?.code === "ACCOUNT_NOT_FOUND") {
         setExists(false)
         setReason("not_funded")
         setError(null)
-      } else {
+      } else if (stellarError) {
         setExists(null)
-        // reason doesn't explicitly have an error state, but let's leave it as is or change it?
-        // Wait, if it fails, what is the reason? The requirements say:
-        // "Any other failure (network, rate-limit) → error via toStellarError, and leave exists as null."
-        // We probably don't need to change reason, but let's set it to whatever it was or keep it.
-        // Actually, if we just set error, it's fine.
         setError(stellarError)
       }
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
   }, [address, network])
@@ -74,6 +79,10 @@ export function useAccountExists({
   useEffect(() => {
     fetchExists()
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchExists])

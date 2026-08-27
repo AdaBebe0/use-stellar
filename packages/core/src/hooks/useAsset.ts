@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer } from "../utils"
 import { createStellarError, toStellarError } from "../errors"
@@ -55,8 +55,17 @@ export function useAsset({ code, issuer, autoFetch = true }: UseAssetOptions): U
   const [asset, setAsset] = useState<AssetInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetchAsset = useCallback(async () => {
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
 
@@ -83,15 +92,26 @@ export function useAsset({ code, issuer, autoFetch = true }: UseAssetOptions): U
         },
       })
     } catch (err) {
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setError(stellarError)
+      }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [code, issuer, network])
 
   useEffect(() => {
     if (autoFetch) {
       fetchAsset()
+    }
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
     }
   }, [fetchAsset, autoFetch])
 

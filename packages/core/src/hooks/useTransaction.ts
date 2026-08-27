@@ -37,6 +37,7 @@ export function useTransaction({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
   const transactionRef = useRef<TransactionResult | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   transactionRef.current = transaction
 
@@ -47,6 +48,14 @@ export function useTransaction({
       setLoading(false)
       return
     }
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     setLoading(true)
     setError(null)
@@ -66,16 +75,19 @@ export function useTransaction({
         envelope: raw.envelope_xdr,
       })
     } catch (err: unknown) {
+      const stellarError = toStellarError(err)
+
       // 404 means not found / still pending
       const is404 = (err as { response?: { status: number } })?.response?.status === 404
       if (is404) {
         setTransaction({ hash: hash!, status: watch ? "pending" : "not_found" })
-      } else {
+      } else if (stellarError) {
         setTransaction(null)
-        setError(toStellarError(err))
+        setError(stellarError)
       }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [hash, network, watch])
 
@@ -93,6 +105,10 @@ export function useTransaction({
     return () => {
       if (interval) {
         clearInterval(interval)
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
       }
     }
   }, [fetchTransaction, watch])

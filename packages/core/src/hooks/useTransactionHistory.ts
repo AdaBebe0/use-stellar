@@ -29,6 +29,7 @@ export function useTransactionHistory({
   // Store page navigation functions from the Horizon response
   const nextRef = useRef<(() => Promise<TransactionPage>) | null>(null)
   const prevRef = useRef<(() => Promise<TransactionPage>) | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const [hasNext, setHasNext] = useState(false)
   const [hasPrev, setHasPrev] = useState(false)
@@ -40,6 +41,14 @@ export function useTransactionHistory({
       setHasPrev(false)
       return
     }
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     setLoading(true)
     setError(null)
@@ -62,14 +71,27 @@ export function useTransactionHistory({
       setHasNext(res.records.length >= limit)
       setHasPrev(!!cursor)
     } catch (err) {
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setError(stellarError)
+      }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [resolvedAddress, network, limit, order, cursor])
 
   const fetchNext = useCallback(async () => {
     if (!nextRef.current) return
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
     try {
@@ -83,14 +105,27 @@ export function useTransactionHistory({
       setHasNext(res.records.length >= limit)
       setHasPrev(true)
     } catch (err) {
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setError(stellarError)
+      }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [limit])
 
   const fetchPrev = useCallback(async () => {
     if (!prevRef.current) return
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
     try {
@@ -104,14 +139,25 @@ export function useTransactionHistory({
       setHasNext(true)
       setHasPrev(res.records.length >= limit)
     } catch (err) {
-      setError(toStellarError(err))
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setError(stellarError)
+      }
     } finally {
       setLoading(false)
+      abortControllerRef.current = null
     }
   }, [limit])
 
   useEffect(() => {
     fetchTransactions()
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
   }, [fetchTransactions])
 
   return {

@@ -34,11 +34,20 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
   const [error, setError] = useState<StellarError | null>(null)
 
   const requestRef = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetchAccount = useCallback(async () => {
     if (!resolvedAddress) return
 
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
     const fetchId = ++requestRef.current
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
 
@@ -58,7 +67,7 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
           medThreshold: raw.thresholds.med_threshold,
           highThreshold: raw.thresholds.high_threshold,
         },
-        signers: raw.signers.map(s => ({
+        signers: raw.signers.map((s: { key: string; weight: number; type: string }) => ({
           key: s.key,
           weight: s.weight,
           type: s.type,
@@ -68,11 +77,16 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
       setAccount(info)
     } catch (err) {
       if (fetchId !== requestRef.current) return
-      setAccount(null)
-      setError(toStellarError(err))
+
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setAccount(null)
+        setError(stellarError)
+      }
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
   }, [resolvedAddress, network])
@@ -80,6 +94,10 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
   useEffect(() => {
     fetchAccount()
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchAccount])

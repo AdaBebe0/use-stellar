@@ -28,6 +28,7 @@ export function useClaimableBalance({
   // Monotonic id used to ignore stale responses (e.g. when the address/network
   // changes mid-flight, or the component unmounts before a fetch resolves).
   const requestRef = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const fetchBalances = useCallback(async () => {
     if (!resolvedAddress) {
@@ -35,7 +36,15 @@ export function useClaimableBalance({
       return
     }
 
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
     const fetchId = ++requestRef.current
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
 
@@ -61,15 +70,16 @@ export function useClaimableBalance({
       if (fetchId !== requestRef.current) return
       const stellarError = toStellarError(err)
       // A 404 means the account has no claimable balances — treat as empty
-      if (stellarError.code === "ACCOUNT_NOT_FOUND") {
+      if (stellarError?.code === "ACCOUNT_NOT_FOUND") {
         setBalances([])
-      } else {
+      } else if (stellarError) {
         setBalances([])
         setError(stellarError)
       }
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
   }, [resolvedAddress, network])
@@ -77,6 +87,10 @@ export function useClaimableBalance({
   useEffect(() => {
     fetchBalances()
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchBalances])

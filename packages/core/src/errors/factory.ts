@@ -129,9 +129,40 @@ function fromResultCodes(resultCodes: HorizonResultCodes): StellarErrorCode | un
 }
 
 /**
+ * Returns true if an error is an abort error (from AbortController).
+ *
+ * Abort errors come in two shapes:
+ *  - Native: `error.name === "AbortError"` (modern browsers, Node 15+)
+ *  - Axios: `axios.isCancel(error)` when axios wraps the abort signal
+ *
+ * A deliberate abort is not an error condition and should not set error state.
+ */
+export function isAbortError(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") {
+    return true
+  }
+
+  // Axios wraps cancellations in its own error shape
+  if (error && typeof error === "object" && "__CANCEL__" in error) {
+    return true
+  }
+
+  // Check for axios.isCancel if axios is available
+  if (typeof error === "object" && error !== null) {
+    const message = (error as Error).message || ""
+    if (message.includes("canceled") || message.includes("cancelled")) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
  * Normalise any thrown value into a typed {@link StellarError}.
  *
  * Mapping precedence (most specific first):
+ *  0. Abort errors → return null (a deliberate abort is not an error).
  *  1. Already a `StellarError` → returned unchanged.
  *  2. Horizon `result_codes` — operation codes first, then transaction codes.
  *  3. Horizon problem-details `type` URI (RFC 7807).
@@ -146,7 +177,11 @@ function fromResultCodes(resultCodes: HorizonResultCodes): StellarErrorCode | un
  * narrow: classification by substring is guessing, and a consumer branching on
  * `err.code` renders a wrong UI with full confidence when the guess is wrong.
  */
-export function toStellarError(error: unknown): StellarError {
+export function toStellarError(error: unknown): StellarError | null {
+  // 0. Abort errors are not errors — they're deliberate cancellations.
+  if (isAbortError(error)) {
+    return null
+  }
   // 1. Pass-through anything already typed.
   if (error instanceof StellarError) {
     return error

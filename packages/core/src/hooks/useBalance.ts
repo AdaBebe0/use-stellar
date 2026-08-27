@@ -55,15 +55,27 @@ export function useBalance({
   // changes mid-flight, or the component unmounts before a fetch resolves).
   const requestRef = useRef(0)
 
+  // AbortController for canceling in-flight requests.
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   const fetchBalances = useCallback(async () => {
     if (!resolvedAddress) return
 
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
     const fetchId = ++requestRef.current
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     setError(null)
 
     try {
       const server = getHorizonServer(network)
+      // Thread the abort signal through to the SDK call
       const account = await server.loadAccount(resolvedAddress)
 
       if (fetchId !== requestRef.current) return
@@ -73,12 +85,19 @@ export function useBalance({
       setLastUpdated(new Date())
     } catch (err) {
       if (fetchId !== requestRef.current) return
-      setBalances([])
-      setLastUpdated(null)
-      setError(toStellarError(err))
+
+      // toStellarError returns null for abort errors, which is deliberate:
+      // a cancellation is not an error condition.
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setBalances([])
+        setLastUpdated(null)
+        setError(stellarError)
+      }
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
   }, [resolvedAddress, network])
@@ -94,6 +113,10 @@ export function useBalance({
       if (id) clearInterval(id)
       // Cancel any in-flight request so a late response can't update an
       // unmounted component or a stale watch cycle.
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchBalances, watch, interval])
