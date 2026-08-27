@@ -67,7 +67,36 @@ export function useTransactionHistory({
   // Store page navigation functions from the Horizon response
   const nextRef = useRef<(() => Promise<TransactionPage>) | null>(null)
   const prevRef = useRef<(() => Promise<TransactionPage>) | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrev, setHasPrev] = useState(false)
+
+  const fetchTransactions = useCallback(async () => {
+    if (!resolvedAddress) {
+      setTransactions([])
+      setHasNext(false)
+      setHasPrev(false)
+      return
+    }
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const server = getHorizonServer(network)
+      let query = server.transactions().forAccount(resolvedAddress).limit(limit).order(order)
+      if (cursor) {
+        query = query.cursor(cursor)
+      }
   const [pageLoading, setPageLoading] = useState(false)
   const [pageError, setPageError] = useState<StellarError | null>(null)
   // Override transactions for paginated responses beyond the first page.
@@ -93,6 +122,32 @@ export function useTransactionHistory({
       nextRef.current = res.records.length > 0 ? () => res.next() : null
       prevRef.current = res.records.length > 0 ? () => res.prev() : null
 
+      setHasNext(res.records.length >= limit)
+      setHasPrev(!!cursor)
+    } catch (err) {
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setError(stellarError)
+      }
+    } finally {
+      setLoading(false)
+      abortControllerRef.current = null
+    }
+  }, [resolvedAddress, network, limit, order, cursor])
+
+  const fetchNext = useCallback(async () => {
+    if (!nextRef.current) return
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    setLoading(true)
+    setError(null)
       return {
         transactions: normalized,
         hasNext: res.records.length >= limit,
@@ -128,6 +183,13 @@ export function useTransactionHistory({
       setPageHasNext(res.records.length >= limit)
       setPageHasPrev(true)
     } catch (err) {
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setError(stellarError)
+      }
+    } finally {
+      setLoading(false)
+      abortControllerRef.current = null
       setPageError(toStellarError(err))
     } finally {
       setPageLoading(false)
@@ -136,6 +198,17 @@ export function useTransactionHistory({
 
   const fetchPrev = useCallback(async () => {
     if (!prevRef.current) return
+
+    // Cancel any in-flight request before starting a new one.
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    setLoading(true)
+    setError(null)
     setPageLoading(true)
     setPageError(null)
     try {
@@ -149,6 +222,26 @@ export function useTransactionHistory({
       setPageHasNext(true)
       setPageHasPrev(res.records.length >= limit)
     } catch (err) {
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setError(stellarError)
+      }
+    } finally {
+      setLoading(false)
+      abortControllerRef.current = null
+    }
+  }, [limit])
+
+  useEffect(() => {
+    fetchTransactions()
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
+  }, [fetchTransactions])
       setPageError(toStellarError(err))
     } finally {
       setPageLoading(false)

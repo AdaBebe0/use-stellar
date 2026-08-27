@@ -83,6 +83,9 @@ export function useAccountExists({
     }
   }
 
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     try {
       const server = getHorizonServer(network)
       await server.loadAccount(address)
@@ -96,11 +99,11 @@ export function useAccountExists({
 
       const stellarError = toStellarError(err)
 
-      if (stellarError.code === "ACCOUNT_NOT_FOUND") {
+      if (stellarError?.code === "ACCOUNT_NOT_FOUND") {
         setExists(false)
         setReason("not_funded")
         setError(null)
-      } else {
+      } else if (stellarError) {
         setExists(null)
         // reason doesn't explicitly have an error state, but let's leave it as is <or change it?
         // Wait, if it fails, what is the reason? The requirements say:
@@ -112,6 +115,7 @@ export function useAccountExists({
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
   }, [address, network])
@@ -119,6 +123,10 @@ export function useAccountExists({
   useEffect(() => {
     fetchExists()
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchExists])

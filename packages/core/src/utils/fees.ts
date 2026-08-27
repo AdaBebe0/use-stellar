@@ -84,6 +84,7 @@ export async function resolveFee(server: FeeSource, options: FeeOptions = {}): P
     throw createStellarError(
       "NETWORK_ERROR",
       "Could not fetch the current network base fee, so no fee could be chosen. " +
+        `Pass an explicit \`fee\` to proceed without Horizon. (${cause?.message ?? "Unknown error"})`,
         `Pass an explicit \`fee\` to proceed without Horizon. (${causeMessage})`,
       { raw: err }
     )

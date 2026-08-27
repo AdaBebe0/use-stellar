@@ -60,11 +60,40 @@ export function useAccount({ address, staleTime }: UseAccountOptions = {}): UseA
           medThreshold: raw.thresholds.med_threshold,
           highThreshold: raw.thresholds.high_threshold,
         },
-        signers: raw.signers.map(s => ({
+        signers: raw.signers.map((s: { key: string; weight: number; type: string }) => ({
           key: s.key,
           weight: s.weight,
           type: s.type,
         })),
+      }
+
+      setAccount(info)
+    } catch (err) {
+      if (fetchId !== requestRef.current) return
+
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setAccount(null)
+        setError(stellarError)
+      }
+    } finally {
+      if (fetchId === requestRef.current) {
+        setLoading(false)
+        abortControllerRef.current = null
+      }
+    }
+  }, [resolvedAddress, network])
+
+  useEffect(() => {
+    fetchAccount()
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+      requestRef.current = -1
+    }
+  }, [fetchAccount])
       } satisfies AccountInfo
     },
     store: queryStore,

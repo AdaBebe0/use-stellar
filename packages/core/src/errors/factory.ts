@@ -144,6 +144,7 @@ export function isAbortError(error: unknown): boolean {
  * Normalize any thrown value into a typed {@link StellarError}.
  *
  * Mapping precedence (most specific first):
+ *  0. Abort errors → return null (a deliberate abort is not an error).
  *  1. Already a `StellarError` → returned unchanged.
  *  2. Abort error → returns `null` (deliberate cancellation, not an error).
  *  3. HTTP 504 Gateway Timeout → returns `TX_TIMEOUT` with transaction hash.
@@ -161,6 +162,10 @@ export function isAbortError(error: unknown): boolean {
  * `err.code` renders a wrong UI with full confidence when the guess is wrong.
  */
 export function toStellarError(error: unknown): StellarError | null {
+  // 0. Abort errors are not errors — they're deliberate cancellations.
+  if (isAbortError(error)) {
+    return null
+  }
   // 1. Pass-through anything already typed.
   if (error instanceof StellarError) {
     return error
