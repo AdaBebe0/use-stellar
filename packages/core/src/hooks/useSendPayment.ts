@@ -10,7 +10,6 @@ import {
   toSubmissionError,
   StellarError as StellarErrorClass,
 } from "../errors"
-import { createStellarError, toStellarError, toSubmissionError } from "../errors"
 import { accountKey } from "../cache"
 import type { SendPaymentOptions, SendPaymentResult, Asset, StellarError } from "../types"
 
