@@ -1,5 +1,5 @@
 import * as React from "react"
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useMemo, useState } from "react"
 import type {
   AutoConnectOptions,
   CustomNetworkConfig,
@@ -244,17 +244,23 @@ export function StellarProvider({
   // Resolve once at render time — throws immediately on bad config so
   // developers see the error in the console/overlay rather than silently
   // getting undefined URLs at request time.
-  const resolvedNetworkConfig = resolveNetworkConfig(network, networkConfigOverride)
+  const resolvedNetworkConfig = useMemo(
+    () => resolveNetworkConfig(network, networkConfigOverride),
+    [network, networkConfigOverride?.horizonUrl, networkConfigOverride?.sorobanUrl]
+  )
 
   const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET)
 
-  const value: StellarContextValue = {
-    network,
-    networkConfig: resolvedNetworkConfig,
-    wallet,
-    setWallet,
-    autoConnect: resolveAutoConnect(autoConnect),
-  }
+  const value = useMemo<StellarContextValue>(
+    () => ({
+      network,
+      networkConfig: resolvedNetworkConfig,
+      wallet,
+      setWallet,
+      autoConnect: resolveAutoConnect(autoConnect),
+    }),
+    [network, resolvedNetworkConfig, wallet]
+  )
 
   return <StellarContext.Provider value={value}>{children}</StellarContext.Provider>
 }
