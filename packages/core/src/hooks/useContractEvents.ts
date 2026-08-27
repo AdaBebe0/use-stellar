@@ -254,6 +254,7 @@ export function useContractEvents({
       }
     }
     // `contractIds` and `topics` are covered by their serialized keys above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- topics is represented by topicKey to avoid inline-array resubscriptions.
   }, [enabled, contractKey, topicKey, startLedger, sorobanUrl, bufferSize])
 
   useEffect(() => {
