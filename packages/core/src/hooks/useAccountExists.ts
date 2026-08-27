@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useStellarContext } from "../context/StellarProvider"
-import { getHorizonServer, isValidStellarAddress } from "../utils"
+import { getHorizonServer, getAddressType } from "../utils"
 import { toStellarError } from "../errors"
 import type { UseAccountExistsOptions, UseAccountExistsReturn } from "../types"
 
@@ -31,7 +31,7 @@ export function useAccountExists({
     setError(null)
     setExists(null) // Reset while loading, or keep previous? Instructions say: "null while loading / idle"
 
-    if (!isValidStellarAddress(address)) {
+    if (getAddressType(address) === null) {
       setExists(false)
       setReason("invalid_format")
       setLoading(false)
@@ -57,9 +57,9 @@ export function useAccountExists({
         setError(null)
       } else {
         setExists(null)
-        // reason doesn't explicitly have an error state, but let's leave it as is or change it?
+        // reason doesn't explicitly have an error state, but let's leave it as is <or change it?
         // Wait, if it fails, what is the reason? The requirements say:
-        // "Any other failure (network, rate-limit) → error via toStellarError, and leave exists as null."
+        // "Any other failure (network, rate-limit) Α error via toStellarError, and leave exists as null."
         // We probably don't need to change reason, but let's set it to whatever it was or keep it.
         // Actually, if we just set error, it's fine.
         setError(stellarError)
