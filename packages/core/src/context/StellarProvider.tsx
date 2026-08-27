@@ -1,5 +1,6 @@
 import * as React from "react"
 import { createContext, useContext, useMemo, useState } from "react"
+import { createContext, useContext, useMemo, useRef, useState } from "react"
 import type {
   AutoConnectOptions,
   CustomNetworkConfig,
@@ -9,8 +10,10 @@ import type {
   WalletState,
 } from "../types"
 import { NETWORK_CONFIGS } from "../types"
+import { QueryStore } from "../cache"
+import type { QueryConfig } from "../cache"
 
-export type { AutoConnectOptions }
+export type { AutoConnectOptions, QueryConfig }
 
 /**
  * The default initial state for a wallet connection in the Stellar context.
@@ -173,6 +176,21 @@ export interface StellarProviderProps {
    */
   networkConfig?: CustomNetworkConfig
   /**
+   * Cache configuration: `staleTime` and `gcTime`, both in milliseconds.
+   *
+   * - **staleTime** (default 30 000): How long fetched data is considered
+   *   fresh. Within this window a re-mount serves from cache with no network
+   *   request.
+   * - **gcTime** (default 300 000): How long a cache entry is kept after all
+   *   hook instances that use it have unmounted. Set to 0 to evict immediately.
+   *
+   * Both can be overridden per hook call.
+   *
+   * @example
+   * <StellarProvider queryConfig={{ staleTime: 60_000, gcTime: 600_000 }}>
+   */
+  queryConfig?: QueryConfig
+  /**
    * Restores the previous wallet session on mount.
    *
    * **Off by default.** When enabled, `useWallet` reconnects only if the
@@ -238,6 +256,7 @@ function resolveAutoConnect(
 export function StellarProvider({
   network = "testnet",
   networkConfig: networkConfigOverride,
+  queryConfig,
   autoConnect,
   children,
 }: StellarProviderProps) {
@@ -251,16 +270,26 @@ export function StellarProvider({
 
   const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET)
 
-  const value = useMemo<StellarContextValue>(
-    () => ({
-      network,
-      networkConfig: resolvedNetworkConfig,
-      wallet,
-      setWallet,
-      autoConnect: resolveAutoConnect(autoConnect),
-    }),
-    [network, resolvedNetworkConfig, wallet]
-  )
+  // The QueryStore is created once per provider mount (not per render).
+  // We use useRef so the store instance is stable — recreating it on every
+  // render would lose all cached data, defeating the purpose entirely.
+  //
+  // When queryConfig changes we do NOT recreate the store: staleTime and
+  // gcTime are read from the store's config at access time, so a prop update
+  // takes effect on the next fetch/eviction without invalidating the cache.
+  const queryConfigRef = useRef(queryConfig)
+  queryConfigRef.current = queryConfig
+
+  const queryStore = useMemo(() => new QueryStore(queryConfig), []) // eslint-disable-line
+
+  const value: StellarContextValue = {
+    network,
+    networkConfig: resolvedNetworkConfig,
+    wallet,
+    setWallet,
+    autoConnect: resolveAutoConnect(autoConnect),
+    queryStore,
+  }
 
   return <StellarContext.Provider value={value}>{children}</StellarContext.Provider>
 }

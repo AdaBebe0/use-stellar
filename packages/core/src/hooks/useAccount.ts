@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from "react"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, parseHorizonBalance } from "../utils"
 import { toStellarError } from "../errors"
+import { useQuery, accountKey } from "../cache"
 import type { AccountInfo, StellarError } from "../types"
 
 export interface UseAccountOptions {
   address?: string | null // defaults to connected wallet address
+  /** Override the provider-level staleTime for this hook instance (ms). */
+  staleTime?: number
 }
 
 export interface UseAccountReturn {
@@ -18,37 +20,37 @@ export interface UseAccountReturn {
 /**
  * Fetches account information including balances, sequence number, and signers.
  *
+ * Results are cached in the shared QueryStore and deduplicated: two components
+ * calling useAccount for the same address issue exactly one network request.
+ *
  * @param options - Configuration options
  * @param options.address - The Stellar address to fetch. Defaults to the connected wallet.
+ * @param options.staleTime - Override the provider-level staleTime for this hook.
  * @returns `{ account, loading, error, refetch }`
  *
  * @example
  * const { account, loading } = useAccount({ address: "G..." })
  */
-export function useAccount({ address }: UseAccountOptions = {}): UseAccountReturn {
-  const { network, wallet } = useStellarContext()
+export function useAccount({ address, staleTime }: UseAccountOptions = {}): UseAccountReturn {
+  const { network, networkConfig, wallet, queryStore } = useStellarContext()
   const resolvedAddress = address ?? wallet.address
 
-  const [account, setAccount] = useState<AccountInfo | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<StellarError | null>(null)
+  const queryKey = resolvedAddress
+    ? accountKey(networkConfig.horizonUrl, network, resolvedAddress)
+    : (["account", "disabled"] as const)
 
-  const requestRef = useRef(0)
+  const {
+    data: account,
+    loading,
+    error: rawError,
+    refetch,
+  } = useQuery<AccountInfo>({
+    queryKey,
+    queryFn: async () => {
+      const server = getHorizonServer(networkConfig)
+      const raw = await server.loadAccount(resolvedAddress!)
 
-  const fetchAccount = useCallback(async () => {
-    if (!resolvedAddress) return
-
-    const fetchId = ++requestRef.current
-    setLoading(true)
-    setError(null)
-
-    try {
-      const server = getHorizonServer(network)
-      const raw = await server.loadAccount(resolvedAddress)
-
-      if (fetchId !== requestRef.current) return
-
-      const info: AccountInfo = {
+      return {
         address: raw.id,
         sequence: raw.sequenceNumber(),
         balances: raw.balances.map(parseHorizonBalance),
@@ -58,7 +60,7 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
           medThreshold: raw.thresholds.med_threshold,
           highThreshold: raw.thresholds.high_threshold,
         },
-        signers: raw.signers.map(s => ({
+        signers: raw.signers.map((s: { key: string; weight: number; type: string }) => ({
           key: s.key,
           weight: s.weight,
           type: s.type,
@@ -68,11 +70,16 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
       setAccount(info)
     } catch (err) {
       if (fetchId !== requestRef.current) return
-      setAccount(null)
-      setError(toStellarError(err))
+
+      const stellarError = toStellarError(err)
+      if (stellarError) {
+        setAccount(null)
+        setError(stellarError)
+      }
     } finally {
       if (fetchId === requestRef.current) {
         setLoading(false)
+        abortControllerRef.current = null
       }
     }
   }, [resolvedAddress, network])
@@ -80,9 +87,21 @@ export function useAccount({ address }: UseAccountOptions = {}): UseAccountRetur
   useEffect(() => {
     fetchAccount()
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       requestRef.current = -1
     }
   }, [fetchAccount])
+      } satisfies AccountInfo
+    },
+    store: queryStore,
+    staleTime,
+    enabled: Boolean(resolvedAddress),
+  })
 
-  return { account, loading, error, refetch: fetchAccount }
+  const error = rawError ? toStellarError(rawError) : null
+
+  return { account, loading, error, refetch }
 }
