@@ -508,7 +508,7 @@ export interface UseFederationLookupReturn {
   record: FederationRecord | null
   loading: boolean
   error: StellarError | null
-  refetch: () => Promise<void>
+  refetch: () => void
 }
 
 export interface UseAccountExistsOptions {
@@ -593,7 +593,7 @@ export interface UsePaymentPathsReturn {
   error: StellarError | null
   /** When the current `paths` were fetched. Quotes go stale in seconds. */
   lastUpdated: Date | null
-  refetch: () => Promise<void>
+  refetch: () => void
 }
 
 /**
