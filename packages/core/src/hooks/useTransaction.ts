@@ -38,66 +38,12 @@ export function useTransaction({
   watch = false,
   staleTime,
 }: UseTransactionOptions): UseTransactionReturn {
-  const { network } = useStellarContext()
-
-  const [transaction, setTransaction] = useState<TransactionResult | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<StellarError | null>(null)
-  const transactionRef = useRef<TransactionResult | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-
-  transactionRef.current = transaction
-
-  const fetchTransaction = useCallback(async () => {
-    if (!hash) {
-      setTransaction(null)
-      setError(null)
-      setLoading(false)
-      return
-    }
-
-    // Cancel any in-flight request before starting a new one.
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-
-    const controller = new AbortController()
-    abortControllerRef.current = controller
-
-    setLoading(true)
-    setError(null)
   const { network, networkConfig, queryStore } = useStellarContext()
 
   const queryKey = hash
     ? transactionKey(networkConfig.horizonUrl, network, hash)
     : (["transaction", "disabled"] as const)
 
-      const status: TransactionStatus = raw.successful ? "success" : "failed"
-
-      setTransaction({
-        hash: raw.hash,
-        status,
-        ledger: Number(raw.ledger),
-        createdAt: raw.created_at,
-        fee: String(raw.fee_charged),
-        envelope: raw.envelope_xdr,
-      })
-    } catch (err: unknown) {
-      const stellarError = toStellarError(err)
-
-      // 404 means not found / still pending
-      const is404 = (err as { response?: { status: number } })?.response?.status === 404
-      if (is404) {
-        setTransaction({ hash: hash!, status: watch ? "pending" : "not_found" })
-      } else if (stellarError) {
-        setTransaction(null)
-        setError(stellarError)
-      }
-    } finally {
-      setLoading(false)
-      abortControllerRef.current = null
-    }
-  }, [hash, network, watch])
   const {
     data: transaction,
     loading,
@@ -150,16 +96,6 @@ export function useTransaction({
       refetchRef.current()
     }, 3000)
 
-    return () => {
-      if (interval) {
-        clearInterval(interval)
-      }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-        abortControllerRef.current = null
-      }
-    }
-  }, [fetchTransaction, watch])
     return () => clearInterval(id)
   }, [watch, hash])
 

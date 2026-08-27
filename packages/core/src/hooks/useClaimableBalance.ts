@@ -36,66 +36,6 @@ export function useClaimableBalance({
     ? claimableBalanceKey(networkConfig.horizonUrl, network, resolvedAddress)
     : (["claimableBalance", "disabled"] as const)
 
-  // Monotonic id used to ignore stale responses (e.g. when the address/network
-  // changes mid-flight, or the component unmounts before a fetch resolves).
-  const requestRef = useRef(0)
-  const abortControllerRef = useRef<AbortController | null>(null)
-
-  const fetchBalances = useCallback(async () => {
-    if (!resolvedAddress) {
-      setBalances([])
-      return
-    }
-
-    // Cancel any in-flight request before starting a new one.
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-
-    const fetchId = ++requestRef.current
-    const controller = new AbortController()
-    abortControllerRef.current = controller
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const server = getHorizonServer(network)
-      const result = await server.claimableBalances().claimant(resolvedAddress).call()
-
-      if (fetchId !== requestRef.current) return
-
-      const parsed: ClaimableBalance[] = result.records.map(record => ({
-        id: record.id,
-        asset: record.asset,
-        amount: record.amount,
-        claimants: record.claimants.map(c => ({
-          destination: c.destination,
-          predicate: c.predicate as object,
-        })),
-        sponsor: record.sponsor,
-      }))
-
-      setBalances(parsed)
-    } catch (err) {
-      if (fetchId !== requestRef.current) return
-      const stellarError = toStellarError(err)
-
-      // toStellarError may return null for abort errors
-      if (!stellarError) {
-        return
-      }
-
-      // A 404 means the account has no claimable balances — treat as empty
-      if (stellarError?.code === "ACCOUNT_NOT_FOUND") {
-        setBalances([])
-      } else if (stellarError) {
-        setBalances([])
-        setError(stellarError)
-      }
-    } finally {
-      if (fetchId === requestRef.current) {
-        setLoading(false)
   const {
     data,
     loading,
@@ -120,10 +60,10 @@ export function useClaimableBalance({
       } catch (err) {
         const stellarError = toStellarError(err)
         // A 404 means the account has no claimable balances — treat as empty
-        if (stellarError.code === "ACCOUNT_NOT_FOUND") {
+        if (stellarError?.code === "ACCOUNT_NOT_FOUND") {
           return []
         }
-        throw stellarError
+        throw stellarError ?? err
       }
     },
     store: queryStore,

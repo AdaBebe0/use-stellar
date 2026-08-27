@@ -54,7 +54,6 @@ export function usePayments({
   const prevRef = useRef<(() => Promise<Horizon.ServerApi.CollectionPage<PaymentRecord>>) | null>(
     null
   )
-  const abortControllerRef = useRef<AbortController | null>(null)
 
   const [pageLoading, setPageLoading] = useState(false)
   const [pageError, setPageError] = useState<StellarError | null>(null)
