@@ -1,5 +1,8 @@
 import type { Dispatch, SetStateAction } from "react"
 import type { StellarError } from "../errors"
+import type { QueryStore } from "../cache"
+
+export type { QueryConfig } from "../cache"
 
 export type { StellarError, StellarErrorCode } from "../errors"
 export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "../hooks/useAsset"
@@ -412,6 +415,8 @@ export interface StellarContextValue {
   setWallet: Dispatch<SetStateAction<WalletState>>
   /** Fully-resolved autoconnect options. `enabled` is `false` unless opted in. */
   autoConnect: Required<AutoConnectOptions>
+  /** Shared query/cache store. All fetching hooks read and write through this. */
+  queryStore: QueryStore
 }
 
 export interface UsePaymentsOptions {
@@ -503,7 +508,7 @@ export interface UseFederationLookupReturn {
   record: FederationRecord | null
   loading: boolean
   error: StellarError | null
-  refetch: () => Promise<void>
+  refetch: () => void
 }
 
 export interface UseAccountExistsOptions {
@@ -588,7 +593,7 @@ export interface UsePaymentPathsReturn {
   error: StellarError | null
   /** When the current `paths` were fetched. Quotes go stale in seconds. */
   lastUpdated: Date | null
-  refetch: () => Promise<void>
+  refetch: () => void
 }
 
 /**
@@ -687,4 +692,55 @@ export interface UseContractEventsReturn {
   loading: boolean
   error: StellarError | null
   clear: () => void
+}
+
+// ── Anchor stellar.toml (SEP-1) ────────────────────────────────────────────
+/**
+ * A currency supported by an anchor.
+ */
+export interface AnchorCurrency {
+  code: string
+  issuer: string | null
+  name?: string
+  desc?: string
+  image?: string
+  isAssetAnchored?: boolean
+}
+
+/**
+ * Structured information about a Stellar anchor from its stellar.toml (SEP-1).
+ */
+export interface AnchorInfo {
+  homeDomain: string
+  /** SEP-10 challenge signer. Required before any SEP-10 flow. */
+  signingKey: string | null
+  /** SEP-10 endpoint. */
+  webAuthEndpoint: string | null
+  /** SEP-6 deposit/withdraw. */
+  transferServer: string | null
+  /** SEP-24 interactive deposit/withdraw. */
+  transferServerSep24: string | null
+  kycServer: string | null
+  currencies: AnchorCurrency[]
+  /** The raw parsed document, for fields this interface does not model. */
+  raw: Record<string, unknown>
+}
+
+/**
+ * Options for `useAnchor`.
+ */
+export interface UseAnchorOptions {
+  homeDomain?: string | null
+  /** Defaults to `true`; set `false` to fetch manually via `refetch()`. */
+  autoFetch?: boolean
+}
+
+/**
+ * Return value from `useAnchor`.
+ */
+export interface UseAnchorReturn {
+  anchor: AnchorInfo | null
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
 }

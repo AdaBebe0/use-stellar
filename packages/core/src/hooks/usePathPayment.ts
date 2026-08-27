@@ -5,6 +5,7 @@ import { getHorizonServer, isNativeAsset, isIssuedAsset, isBrowser } from "../ut
 import { asFeeSource, resolveFee } from "../utils/fees"
 import { getWalletAdapter } from "../wallets"
 import { createStellarError, toStellarError } from "../errors"
+import { accountKey } from "../cache"
 import type {
   Asset,
   PathPaymentOptions,
@@ -89,7 +90,9 @@ function toPathPaymentError(error: unknown, mode: PathPaymentOptions["mode"]): S
     )
   }
 
-  return toStellarError(error)
+  const stellarError = toStellarError(error)
+  // toStellarError may return null for abort errors - convert to UNKNOWN
+  return stellarError ?? createStellarError("UNKNOWN", "An unknown error occurred", { raw: error })
 }
 
 /**
@@ -182,7 +185,7 @@ function assertValidOptions(options: PathPaymentOptions): void {
  * })
  */
 export function usePathPayment(): UsePathPaymentReturn {
-  const { network, networkConfig, wallet } = useStellarContext()
+  const { network, networkConfig, wallet, queryStore } = useStellarContext()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
@@ -293,6 +296,13 @@ export function usePathPayment(): UsePathPaymentReturn {
         }
 
         setResult(outcome)
+
+        // Invalidate the sender's account/balance cache — a path payment
+        // changes the sender's balance.
+        if (wallet.address) {
+          queryStore.invalidate(accountKey(networkConfig.horizonUrl, network, wallet.address))
+        }
+
         return outcome
       } catch (err) {
         const stellarError = toPathPaymentError(err, options.mode)
