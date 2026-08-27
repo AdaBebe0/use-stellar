@@ -479,7 +479,9 @@ import { StellarProvider } from "use-stellar";
 
 ## Next.js App Router (SSR)
 
-`use-stellar` is safe to import in server components — it never touches `window` or wallet extension APIs at module load time. However, wallet connection and transaction signing are browser-only, so any component that calls `useWallet`, `useSendPayment`, or other interactive hooks must be a client component.
+`use-stellar` is a **client library**. Every export calls client-only React APIs (e.g. `createContext`, `useState`) at module scope, so the package is built with a `"use client"` directive emitted at the top of the bundle. That directive is included for you automatically — you do **not** need to add it yourself. However, because the directive is emitted for the module, the package can only be meaningfully imported from a client boundary: import it from a module that already carries `"use client"`, or from a component that is otherwise client-side (e.g. inside a `"use client"` provider wrapper or an event handler).
+
+Importing `use-stellar` directly from a Server Component will still fail — the `"use client"` directive makes the library's modules client modules, which is the opposite of server-safe. Any component that renders `StellarProvider` or calls `useWallet`, `useSendPayment`, or other interactive hooks must therefore live on the client side.
 
 ### Pattern
 
