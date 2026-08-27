@@ -39,6 +39,8 @@ export type {
   UseClaimableBalanceOptions,
   UseClaimableBalanceReturn,
 } from "./hooks/useClaimableBalance"
+export { useAnchor } from "./hooks/useAnchor"
+export type { AnchorInfo, AnchorCurrency, UseAnchorOptions, UseAnchorReturn } from "./types"
 
 export {
   FREIGHTER_WALLET_TYPE,

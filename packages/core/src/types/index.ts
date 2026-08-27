@@ -688,3 +688,54 @@ export interface UseContractEventsReturn {
   error: StellarError | null
   clear: () => void
 }
+
+// ── Anchor stellar.toml (SEP-1) ────────────────────────────────────────────
+/**
+ * A currency supported by an anchor.
+ */
+export interface AnchorCurrency {
+  code: string
+  issuer: string | null
+  name?: string
+  desc?: string
+  image?: string
+  isAssetAnchored?: boolean
+}
+
+/**
+ * Structured information about a Stellar anchor from its stellar.toml (SEP-1).
+ */
+export interface AnchorInfo {
+  homeDomain: string
+  /** SEP-10 challenge signer. Required before any SEP-10 flow. */
+  signingKey: string | null
+  /** SEP-10 endpoint. */
+  webAuthEndpoint: string | null
+  /** SEP-6 deposit/withdraw. */
+  transferServer: string | null
+  /** SEP-24 interactive deposit/withdraw. */
+  transferServerSep24: string | null
+  kycServer: string | null
+  currencies: AnchorCurrency[]
+  /** The raw parsed document, for fields this interface does not model. */
+  raw: Record<string, unknown>
+}
+
+/**
+ * Options for `useAnchor`.
+ */
+export interface UseAnchorOptions {
+  homeDomain?: string | null
+  /** Defaults to `true`; set `false` to fetch manually via `refetch()`. */
+  autoFetch?: boolean
+}
+
+/**
+ * Return value from `useAnchor`.
+ */
+export interface UseAnchorReturn {
+  anchor: AnchorInfo | null
+  loading: boolean
+  error: StellarError | null
+  refetch: () => void
+}
