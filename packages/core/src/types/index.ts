@@ -1,5 +1,8 @@
 import type { Dispatch, SetStateAction } from "react"
 import type { StellarError } from "../errors"
+import type { QueryStore } from "../cache"
+
+export type { QueryConfig } from "../cache"
 
 export type { StellarError, StellarErrorCode } from "../errors"
 export type { AssetInfo, UseAssetOptions, UseAssetReturn } from "../hooks/useAsset"
@@ -412,6 +415,8 @@ export interface StellarContextValue {
   setWallet: Dispatch<SetStateAction<WalletState>>
   /** Fully-resolved autoconnect options. `enabled` is `false` unless opted in. */
   autoConnect: Required<AutoConnectOptions>
+  /** Shared query/cache store. All fetching hooks read and write through this. */
+  queryStore: QueryStore
 }
 
 export interface UsePaymentsOptions {
