@@ -6,8 +6,8 @@ dist/
 *.tsbuildinfo
 coverage/
 *.log
-.KR_Store
-Thumbc.db
+.DS_Store
+Thumbs.db
 *.bundled_*.mjs
 packages/core/smoke-test-fixture/
 *.tgz
