@@ -312,7 +312,7 @@ export function usePathPayment(): UsePathPaymentReturn {
         setLoading(false)
       }
     },
-    [network, networkConfig, wallet]
+    [network, networkConfig, wallet, queryStore]
   )
 
   const reset = useCallback(() => {

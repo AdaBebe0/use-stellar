@@ -154,7 +154,7 @@ export function useAddTrustline(): UseAddTrustlineReturn {
         setLoading(false)
       }
     },
-    [network, networkConfig, wallet]
+    [network, networkConfig, wallet, queryStore]
   )
 
   const reset = useCallback(() => {

@@ -314,6 +314,7 @@ export function useWallet(): UseWalletReturn {
     // `connect` is intentionally read once: restore happens on mount only, and
     // re-running it whenever the callback identity changes would reconnect on
     // every network prop change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- session restore ignores callback identity changes that would reconnect on network updates.
   }, [autoConnect.enabled, autoConnect.storage])
 
   // ── Wallet change events ─────────────────────────────────────────────────
