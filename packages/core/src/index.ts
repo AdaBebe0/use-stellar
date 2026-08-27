@@ -1,7 +1,7 @@
 // Stellar React SDK - Main entry point
 // ── Provider ───────────────────────────────────────────────────────────────
 export { StellarProvider, WALLET_SESSION_STORAGE_KEY } from "./context/StellarProvider"
-export type { StellarProviderProps } from "./context/StellarProvider"
+export type { StellarProviderProps, QueryConfig } from "./context/StellarProvider"
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 export { useWallet } from "./hooks/useWallet"
@@ -39,6 +39,8 @@ export type {
   UseClaimableBalanceOptions,
   UseClaimableBalanceReturn,
 } from "./hooks/useClaimableBalance"
+export { useAnchor } from "./hooks/useAnchor"
+export type { AnchorInfo, AnchorCurrency, UseAnchorOptions, UseAnchorReturn } from "./types"
 
 export {
   FREIGHTER_WALLET_TYPE,
@@ -59,6 +61,7 @@ export {
   toStellarError,
   isStellarError,
   isStellarErrorCode,
+  isAbortError,
   STELLAR_ERROR_CODES,
   DEFAULT_ERROR_MESSAGES,
 } from "./errors"

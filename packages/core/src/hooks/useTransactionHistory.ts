@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer } from "../utils"
+import { useQuery, transactionHistoryKey } from "../cache"
 import type {
   UseTransactionHistoryOptions,
   UseTransactionHistoryReturn,
@@ -13,18 +14,55 @@ import { toStellarError } from "../errors"
 type TransactionRecord = Horizon.ServerApi.TransactionRecord
 type TransactionPage = Horizon.ServerApi.CollectionPage<TransactionRecord>
 
+// ── Normalize ──────────────────────────────────────────────────────────────
+function normalizeTransaction(record: TransactionRecord): NormalizedTransaction {
+  return {
+    hash: record.hash,
+    ledger: Number(record.ledger),
+    createdAt: record.created_at,
+    sourceAccount: record.source_account,
+    fee: String(record.fee_charged),
+    operationCount: record.operation_count,
+    successful: record.successful,
+    memo: record.memo,
+    memoType: record.memo_type,
+  }
+}
+
+interface PageData {
+  transactions: NormalizedTransaction[]
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+/**
+ * Fetches an account's transaction history with pagination.
+ *
+ * The first page is cached in the shared QueryStore. Pagination calls bypass
+ * the cache (each page is a unique cursor-based fetch).
+ *
+ * @example
+ * const { transactions, fetchNext } = useTransactionHistory({ address: "G..." })
+ */
 export function useTransactionHistory({
   address,
   limit = 10,
   order = "desc",
   cursor,
 }: UseTransactionHistoryOptions = {}): UseTransactionHistoryReturn {
-  const { network, wallet } = useStellarContext()
+  const { network, networkConfig, wallet, queryStore } = useStellarContext()
   const resolvedAddress = address ?? wallet.address
 
-  const [transactions, setTransactions] = useState<NormalizedTransaction[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<StellarError | null>(null)
+  const queryKey = resolvedAddress
+    ? transactionHistoryKey(
+        networkConfig.horizonUrl,
+        network,
+        resolvedAddress,
+        limit,
+        order,
+        cursor
+      )
+    : (["transactionHistory", "disabled"] as const)
 
   // Store page navigation functions from the Horizon response
   const nextRef = useRef<(() => Promise<TransactionPage>) | null>(null)
@@ -59,12 +97,28 @@ export function useTransactionHistory({
       if (cursor) {
         query = query.cursor(cursor)
       }
+  const [pageLoading, setPageLoading] = useState(false)
+  const [pageError, setPageError] = useState<StellarError | null>(null)
+  // Override transactions for paginated responses beyond the first page.
+  const [pageTransactions, setPageTransactions] = useState<NormalizedTransaction[] | null>(null)
+  const [pageHasNext, setPageHasNext] = useState<boolean | null>(null)
+  const [pageHasPrev, setPageHasPrev] = useState<boolean | null>(null)
+
+  const {
+    data,
+    loading: cacheLoading,
+    error: rawError,
+    refetch,
+  } = useQuery<PageData>({
+    queryKey,
+    queryFn: async () => {
+      const server = getHorizonServer(networkConfig)
+      let query = server.transactions().forAccount(resolvedAddress!).limit(limit).order(order)
+      if (cursor) query = query.cursor(cursor)
 
       const res = await query.call()
       const normalized = res.records.map(normalizeTransaction)
-      setTransactions(normalized)
 
-      // Save pagination callbacks
       nextRef.current = res.records.length > 0 ? () => res.next() : null
       prevRef.current = res.records.length > 0 ? () => res.prev() : null
 
@@ -94,16 +148,40 @@ export function useTransactionHistory({
 
     setLoading(true)
     setError(null)
+      return {
+        transactions: normalized,
+        hasNext: res.records.length >= limit,
+        hasPrev: !!cursor,
+      }
+    },
+    store: queryStore,
+    enabled: Boolean(resolvedAddress),
+  })
+
+  // Reset page overrides when the base query changes.
+  const keyStr = JSON.stringify(queryKey)
+  const prevKeyRef = useRef(keyStr)
+  if (prevKeyRef.current !== keyStr) {
+    prevKeyRef.current = keyStr
+    setPageTransactions(null)
+    setPageHasNext(null)
+    setPageHasPrev(null)
+  }
+
+  const fetchNext = useCallback(async () => {
+    if (!nextRef.current) return
+    setPageLoading(true)
+    setPageError(null)
     try {
       const res = await nextRef.current()
       const normalized = res.records.map(normalizeTransaction)
-      setTransactions(normalized)
+      setPageTransactions(normalized)
 
       nextRef.current = res.records.length > 0 ? () => res.next() : null
       prevRef.current = res.records.length > 0 ? () => res.prev() : null
 
-      setHasNext(res.records.length >= limit)
-      setHasPrev(true)
+      setPageHasNext(res.records.length >= limit)
+      setPageHasPrev(true)
     } catch (err) {
       const stellarError = toStellarError(err)
       if (stellarError) {
@@ -112,6 +190,9 @@ export function useTransactionHistory({
     } finally {
       setLoading(false)
       abortControllerRef.current = null
+      setPageError(toStellarError(err))
+    } finally {
+      setPageLoading(false)
     }
   }, [limit])
 
@@ -128,16 +209,18 @@ export function useTransactionHistory({
 
     setLoading(true)
     setError(null)
+    setPageLoading(true)
+    setPageError(null)
     try {
       const res = await prevRef.current()
       const normalized = res.records.map(normalizeTransaction)
-      setTransactions(normalized)
+      setPageTransactions(normalized)
 
       nextRef.current = res.records.length > 0 ? () => res.next() : null
       prevRef.current = res.records.length > 0 ? () => res.prev() : null
 
-      setHasNext(true)
-      setHasPrev(res.records.length >= limit)
+      setPageHasNext(true)
+      setPageHasPrev(res.records.length >= limit)
     } catch (err) {
       const stellarError = toStellarError(err)
       if (stellarError) {
@@ -159,30 +242,23 @@ export function useTransactionHistory({
       }
     }
   }, [fetchTransactions])
+      setPageError(toStellarError(err))
+    } finally {
+      setPageLoading(false)
+    }
+  }, [limit])
+
+  const error = pageError ?? (rawError ? toStellarError(rawError) : null)
+  const loading = pageLoading || cacheLoading
 
   return {
-    transactions,
+    transactions: pageTransactions ?? data?.transactions ?? [],
     loading,
     error,
-    refetch: fetchTransactions,
+    refetch,
     fetchNext,
     fetchPrev,
-    hasNext,
-    hasPrev,
-  }
-}
-
-// ── Normalize Transaction Records ──────────────────────────────────────────
-function normalizeTransaction(record: TransactionRecord): NormalizedTransaction {
-  return {
-    hash: record.hash,
-    ledger: Number(record.ledger),
-    createdAt: record.created_at,
-    sourceAccount: record.source_account,
-    fee: String(record.fee_charged),
-    operationCount: record.operation_count,
-    successful: record.successful,
-    memo: record.memo,
-    memoType: record.memo_type,
+    hasNext: pageHasNext ?? data?.hasNext ?? false,
+    hasPrev: pageHasPrev ?? data?.hasPrev ?? false,
   }
 }
