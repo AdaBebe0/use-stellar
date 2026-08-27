@@ -301,3 +301,34 @@ describe("StellarProvider — network passphrases", () => {
     consoleError.mockRestore()
   })
 })
+
+describe("StellarProvider — memoized context value", () => {
+  it("preserves the context value identity across rerenders with unchanged props", () => {
+    const { result, rerender } = renderHook(() => useStellarContext(), {
+      wrapper: makeWrapper({ network: "testnet" }),
+    })
+    const initialValue = result.current
+
+    rerender()
+
+    expect(result.current).toBe(initialValue)
+  })
+
+  it("changes the context value identity when the network changes", () => {
+    let network: "testnet" | "futurenet" = "testnet"
+    function NetworkWrapper({ children }: { children: React.ReactNode }) {
+      return <StellarProvider network={network}>{children}</StellarProvider>
+    }
+
+    const { result, rerender } = renderHook(() => useStellarContext(), {
+      wrapper: NetworkWrapper,
+    })
+    const initialValue = result.current
+
+    network = "futurenet"
+    rerender()
+
+    expect(result.current).not.toBe(initialValue)
+    expect(result.current.network).toBe("futurenet")
+  })
+})
