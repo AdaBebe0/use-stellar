@@ -5,6 +5,7 @@ import { getHorizonServer, isNativeAsset, isIssuedAsset, isBrowser } from "../ut
 import { asFeeSource, resolveFee } from "../utils/fees"
 import { getWalletAdapter } from "../wallets"
 import { createStellarError, toStellarError, toSubmissionError } from "../errors"
+import { accountKey } from "../cache"
 import type { SendPaymentOptions, SendPaymentResult, Asset, StellarError } from "../types"
 
 export interface UseSendPaymentReturn {
@@ -36,7 +37,7 @@ export interface UseSendPaymentReturn {
  * await send({ to: "G...", asset: "XLM", amount: "10", fee: "100000" })
  */
 export function useSendPayment(): UseSendPaymentReturn {
-  const { network, networkConfig, wallet } = useStellarContext()
+  const { network, networkConfig, wallet, queryStore } = useStellarContext()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
@@ -128,6 +129,13 @@ export function useSendPayment(): UseSendPaymentReturn {
         }
 
         setResult(outcome)
+
+        // Invalidate the sender's account/balance cache so any mounted hook
+        // sees fresh data on the next render cycle.
+        if (wallet.address) {
+          queryStore.invalidate(accountKey(networkConfig.horizonUrl, network, wallet.address))
+        }
+
         return outcome
       } catch (err) {
         const stellarError = toStellarError(err)

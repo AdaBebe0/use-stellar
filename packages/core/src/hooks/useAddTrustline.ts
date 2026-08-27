@@ -5,6 +5,7 @@ import { getHorizonServer, isBrowser, isIssuedAsset } from "../utils"
 import { asFeeSource, resolveFee } from "../utils/fees"
 import { getWalletAdapter } from "../wallets"
 import { createStellarError, toStellarError, toSubmissionError } from "../errors"
+import { accountKey } from "../cache"
 import type {
   AddTrustlineOptions,
   TransactionResult,
@@ -25,7 +26,7 @@ import type {
  * })
  */
 export function useAddTrustline(): UseAddTrustlineReturn {
-  const { network, networkConfig, wallet } = useStellarContext()
+  const { network, networkConfig, wallet, queryStore } = useStellarContext()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
@@ -109,6 +110,13 @@ export function useAddTrustline(): UseAddTrustlineReturn {
 
         const outcome: TransactionResult = { hash: res.hash, status: "success" }
         setResult(outcome)
+
+        // Invalidate the sender's account/balance cache — a new trustline
+        // changes the account's subentry count and balance list.
+        if (wallet.address) {
+          queryStore.invalidate(accountKey(networkConfig.horizonUrl, network, wallet.address))
+        }
+
         return outcome
       } catch (err) {
         const stellarError = toStellarError(err)

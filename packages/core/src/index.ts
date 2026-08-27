@@ -1,7 +1,7 @@
 // Stellar React SDK - Main entry point
 // ── Provider ───────────────────────────────────────────────────────────────
 export { StellarProvider, WALLET_SESSION_STORAGE_KEY } from "./context/StellarProvider"
-export type { StellarProviderProps } from "./context/StellarProvider"
+export type { StellarProviderProps, QueryConfig } from "./context/StellarProvider"
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 export { useWallet } from "./hooks/useWallet"
