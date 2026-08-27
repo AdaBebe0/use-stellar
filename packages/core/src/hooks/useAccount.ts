@@ -60,7 +60,7 @@ export function useAccount({ address, staleTime }: UseAccountOptions = {}): UseA
           medThreshold: raw.thresholds.med_threshold,
           highThreshold: raw.thresholds.high_threshold,
         },
-        signers: raw.signers.map(s => ({
+        signers: raw.signers.map((s: { key: string; weight: number; type: string }) => ({
           key: s.key,
           weight: s.weight,
           type: s.type,

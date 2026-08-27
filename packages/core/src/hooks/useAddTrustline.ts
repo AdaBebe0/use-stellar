@@ -4,7 +4,12 @@ import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, isBrowser, isIssuedAsset } from "../utils"
 import { asFeeSource, resolveFee } from "../utils/fees"
 import { getWalletAdapter } from "../wallets"
-import { createStellarError, toStellarError, toSubmissionError } from "../errors"
+import {
+  createStellarError,
+  toStellarError,
+  toSubmissionError,
+  StellarError as StellarErrorClass,
+} from "../errors"
 import { accountKey } from "../cache"
 import type {
   AddTrustlineOptions,

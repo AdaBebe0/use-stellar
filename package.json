@@ -10,6 +10,10 @@
   "scripts": {
     "dev": "pnpm --filter @use-stellar/demo dev",
     "build": "pnpm --filter use-stellar build",
+  ],  "scripts": {
+    "dev": "pnpm build:lib && pnpm --filter @use-stellar/demo dev",
+    "build": "pnpm build:lib && pnpm --filter @use-stellar/demo build",
+    "build:lib": "pnpm --filter use-stellar build",
     "size": "pnpm --filter use-stellar size",
     "size:why": "pnpm --filter use-stellar size:why",
     "test": "pnpm --filter use-stellar test",
@@ -20,6 +24,9 @@
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"packages/demo/app/**/*.{ts,tsx}\" \"packages/demo/components/**/*.{ts,tsx}\" --max-warnings 0",
     "lint:fix": "eslint \"packages/*/src/**/*.{ts,tsx}\" \"packages/demo/app/**/*.{ts,tsx}\" \"packages/demo/components/**/*.{ts,tsx}\" --fix --max-warnings 0",
     "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
+    "lint": "eslint \"packages/core/src/**/*.{ts,tsx}\" --max-warnings 0 && pnpm --filter @use-stellar/demo lint",
+    "lint:fix": "eslint \"packages/core/src/**/*.{ts,tsx}\" --fix --max-warnings 0 && pnpm --filter @use-stellar/demo lint",
+    "typecheck": "tsc --noEmit -p packages/core/tsconfig.json && pnpm --filter @use-stellar/demo typecheck",
     "prepare": "husky"
   },
   "lint-staged": {

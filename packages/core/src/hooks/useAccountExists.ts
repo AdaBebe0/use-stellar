@@ -41,10 +41,10 @@ export function useAccountExists({
         return { exists: true, reason: "exists" as const }
       } catch (err) {
         const stellarError = toStellarError(err)
-        if (stellarError.code === "ACCOUNT_NOT_FOUND") {
+        if (stellarError?.code === "ACCOUNT_NOT_FOUND") {
           return { exists: false, reason: "not_funded" as const }
         }
-        throw stellarError
+        throw stellarError ?? err
       }
     },
     store: queryStore,
