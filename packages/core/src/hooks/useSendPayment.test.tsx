@@ -1,23 +1,56 @@
 import React from "react"
-import { renderHook } from "@testing-library/react"
+import { act, renderHook } from "@testing-library/react"
 import { useSendPayment } from "./useSendPayment"
 import { StellarProvider } from "../context/StellarProvider"
 import type { ReactNode } from "react"
 import type { WalletState } from "../types"
 
 // Mock the Stellar SDK and Freighter API
-jest.mock("@stellar/stellar-sdk")
+jest.mock("@stellar/stellar-sdk", () => ({
+  TransactionBuilder: class MockTransactionBuilder {
+    addOperation() {
+      return this
+    }
+
+    addMemo() {
+      return this
+    }
+
+    setTimeout() {
+      return this
+    }
+
+    build() {
+      return { toXDR: () => "xdr" }
+    }
+
+    static fromXDR() {
+      return { toXDR: () => "signed_xdr" }
+    }
+  },
+  Networks: { PUBLIC: "Public Global Stellar Network ; September 2015", TESTNET: "Test SDF" },
+  BASE_FEE: "100",
+  Operation: { payment: jest.fn(() => ({})) },
+  Asset: class MockAsset {
+    static native() {
+      return {}
+    }
+  },
+  Memo: { text: jest.fn() },
+}))
 jest.mock("@stellar/freighter-api")
-jest.mock("../utils")
+jest.mock("../wallets", () => ({ getWalletAdapter: jest.fn() }))
 
 // Mock isBrowser to return true for these tests
 jest.mock("../utils", () => ({
   ...jest.requireActual("../utils"),
+  getHorizonServer: jest.fn(),
   isBrowser: () => true,
 }))
 
 // Mock the context to inject wallet state
 const mockSetWallet = jest.fn()
+const mockLoadAccount = jest.fn()
 let mockWalletState: WalletState = {
   connected: false,
   address: null,
@@ -54,6 +87,8 @@ function createWrapper(network: "testnet" | "mainnet" = "testnet") {
 
 describe("useSendPayment - Payment Flow", () => {
   beforeEach(() => {
+    jest.clearAllMocks()
+
     // Set up wallet state for a connected wallet
     mockWalletState = {
       connected: true,
@@ -66,28 +101,10 @@ describe("useSendPayment - Payment Flow", () => {
       walletName: "Freighter",
     }
 
-    // Mock stellar-sdk
-    const { TransactionBuilder, Networks, Operation } = jest.requireActual("@stellar/stellar-sdk")
-    interface MockStellarSdk {
-      TransactionBuilder: typeof TransactionBuilder
-      Networks: typeof Networks
-      Operation: typeof Operation
-      BASE_FEE: string
-      Memo: { text: jest.Mock }
-      Asset: { native: jest.Mock }
-    }
-    const sdk = jest.requireMock("@stellar/stellar-sdk") as MockStellarSdk
-    sdk.TransactionBuilder = TransactionBuilder
-    sdk.Networks = Networks
-    sdk.Operation = Operation
-    sdk.BASE_FEE = "100"
-    sdk.Memo = { text: jest.fn() }
-    sdk.Asset = { native: jest.fn() }
-
     // Mock getHorizonServer and its methods
     const { getHorizonServer } = jest.requireMock("../utils") as { getHorizonServer: jest.Mock }
     getHorizonServer.mockReturnValue({
-      loadAccount: jest.fn().mockResolvedValue({
+      loadAccount: mockLoadAccount.mockResolvedValue({
         sequenceNumber: () => "123",
       }),
       submitTransaction: jest.fn().mockResolvedValue({
@@ -108,7 +125,9 @@ describe("useSendPayment - Payment Flow", () => {
     })
 
     const paymentOpts = { to: "GDEST", amount: "10", asset: "XLM" as const }
-    await result.current.send(paymentOpts)
+    await act(async () => {
+      await result.current.send(paymentOpts)
+    })
 
     expect(result.current.loading).toBe(false)
     expect(result.current.error).toBeNull()
@@ -133,11 +152,45 @@ describe("useSendPayment - Payment Flow", () => {
 
     const paymentOpts = { to: "GDEST", amount: "10", asset: "XLM" as const }
 
-    await expect(result.current.send(paymentOpts)).rejects.toThrow("Submission failed")
+    await act(async () => {
+      await expect(result.current.send(paymentOpts)).rejects.toThrow("Submission failed")
+    })
 
     expect(result.current.loading).toBe(false)
     expect(result.current.error).not.toBeNull()
     expect(result.current.error?.message).toBe("Submission failed")
     expect(result.current.result).toBeNull()
+  })
+
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["an empty object", {}],
+    ["a missing issuer", { code: "USDC" }],
+    ["an empty issuer", { code: "USDC", issuer: "" }],
+    ["a non-string issuer", { code: "USDC", issuer: 123 }],
+    ["a missing code", { issuer: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF" }],
+    ["a lowercase asset string", "usdc"],
+  ])("rejects %s before loading the account", async (_description, asset) => {
+    const { result } = renderHook(() => useSendPayment(), {
+      wrapper: createWrapper("testnet"),
+    })
+
+    await act(async () => {
+      await expect(
+        result.current.send({
+          to: "GDEST",
+          amount: "10",
+          // @ts-expect-error - malformed runtime input must be rejected at the hook boundary
+          asset,
+        })
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message:
+          `Unsupported asset: ${JSON.stringify(asset)}. ` + `Pass "XLM" or { code, issuer }.`,
+      })
+    })
+
+    expect(mockLoadAccount).not.toHaveBeenCalled()
   })
 })

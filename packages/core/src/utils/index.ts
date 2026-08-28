@@ -23,7 +23,16 @@ export function isNativeAsset(asset: Asset): asset is "XLM" {
 }
 
 export function isIssuedAsset(asset: Asset): asset is IssuedAsset {
-  return typeof asset === "object" && "code" in asset
+  return (
+    typeof asset === "object" &&
+    asset !== null &&
+    "code" in asset &&
+    typeof asset.code === "string" &&
+    asset.code.trim().length > 0 &&
+    "issuer" in asset &&
+    typeof asset.issuer === "string" &&
+    asset.issuer.trim().length > 0
+  )
 }
 
 export function formatAssetCode(asset: Asset): string {
