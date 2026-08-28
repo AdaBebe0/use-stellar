@@ -41,6 +41,7 @@ export type {
 } from "./hooks/useClaimableBalance"
 export { useAnchor } from "./hooks/useAnchor"
 export type { AnchorInfo, AnchorCurrency, UseAnchorOptions, UseAnchorReturn } from "./types"
+export { useTrades } from "./hooks/useTrades"
 
 export {
   FREIGHTER_WALLET_TYPE,
@@ -124,6 +125,9 @@ export type {
   UseAccountExistsOptions,
   UseAccountExistsReturn,
   AccountExistsReason,
+  NormalizedTrade,
+  UseTradesOptions,
+  UseTradesReturn,
 } from "./types"
 export type {
   RegisterWalletAdapterOptions,
