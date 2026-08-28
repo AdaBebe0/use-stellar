@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   SorobanRpc,
   Contract,
@@ -45,6 +45,13 @@ function isValidContractId(id: string): boolean {
   return typeof id === "string" && /^C[A-Z2-7]{55}$/.test(id)
 }
 
+/**
+ * Simulates a read-only Soroban contract call when its inputs change.
+ *
+ * Prefer passing `xdr.ScVal[]` for contract arguments. Callers should memoize
+ * non-primitive argument values so their serialized meaning remains explicit
+ * and serialization work is avoided on unrelated parent renders.
+ */
 export function useSorobanContract({
   contractId,
   method,
@@ -55,6 +62,16 @@ export function useSorobanContract({
   const [data, setData] = useState<unknown | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
+
+  const argsKey = useMemo(
+    () =>
+      args
+        .map(arg => (arg instanceof xdr.ScVal ? arg.toXDR("base64") : JSON.stringify(arg)))
+        .join("|"),
+    [args]
+  )
+  const argsRef = useRef(args)
+  argsRef.current = args
 
   const callContract = useCallback(async () => {
     if (!contractId || !method) {
@@ -85,7 +102,7 @@ export function useSorobanContract({
 
       let scArgs: xdr.ScVal[]
       try {
-        scArgs = args.map(toScVal)
+        scArgs = argsRef.current.map(toScVal)
       } catch (argErr) {
         throw new Error(
           `Argument conversion failed: ${argErr instanceof Error ? argErr.message : String(argErr)}`
@@ -137,7 +154,7 @@ export function useSorobanContract({
     } finally {
       setLoading(false)
     }
-  }, [contractId, method, args, networkConfig])
+  }, [contractId, method, argsKey, networkConfig.sorobanUrl, networkConfig.network])
 
   useEffect(() => {
     callContract()
