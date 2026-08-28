@@ -33,14 +33,27 @@ export function useTransactionHistory({
   const [hasNext, setHasNext] = useState(false)
   const [hasPrev, setHasPrev] = useState(false)
 
+  // Monotonic id shared by fetchTransactions/fetchNext/fetchPrev — whichever
+  // of the three started most recently owns the state writes below, so a
+  // slower, superseded response (from any of the three) is discarded.
+  // Distinct from unmount cancellation below — a superseded fetch is
+  // discarded because a newer fetch owns the state, while a cancelled fetch
+  // is discarded because there is no component left to update.
+  const requestRef = useRef(0)
+  // Set only by the effect cleanup on unmount. Reset at the top of the
+  // effect so it doesn't leak across re-runs.
+  const cancelledRef = useRef(false)
+
   const fetchTransactions = useCallback(async () => {
     if (!resolvedAddress) {
       setTransactions([])
       setHasNext(false)
       setHasPrev(false)
+      setLoading(false)
       return
     }
 
+    const fetchId = ++requestRef.current
     setLoading(true)
     setError(null)
 
@@ -52,6 +65,9 @@ export function useTransactionHistory({
       }
 
       const res = await query.call()
+
+      if (cancelledRef.current || fetchId !== requestRef.current) return
+
       const normalized = res.records.map(normalizeTransaction)
       setTransactions(normalized)
 
@@ -62,18 +78,25 @@ export function useTransactionHistory({
       setHasNext(res.records.length >= limit)
       setHasPrev(!!cursor)
     } catch (err) {
+      if (cancelledRef.current || fetchId !== requestRef.current) return
       setError(toStellarError(err))
     } finally {
-      setLoading(false)
+      if (!cancelledRef.current && fetchId === requestRef.current) {
+        setLoading(false)
+      }
     }
   }, [resolvedAddress, network, limit, order, cursor])
 
   const fetchNext = useCallback(async () => {
     if (!nextRef.current) return
+    const fetchId = ++requestRef.current
     setLoading(true)
     setError(null)
     try {
       const res = await nextRef.current()
+
+      if (cancelledRef.current || fetchId !== requestRef.current) return
+
       const normalized = res.records.map(normalizeTransaction)
       setTransactions(normalized)
 
@@ -83,18 +106,25 @@ export function useTransactionHistory({
       setHasNext(res.records.length >= limit)
       setHasPrev(true)
     } catch (err) {
+      if (cancelledRef.current || fetchId !== requestRef.current) return
       setError(toStellarError(err))
     } finally {
-      setLoading(false)
+      if (!cancelledRef.current && fetchId === requestRef.current) {
+        setLoading(false)
+      }
     }
   }, [limit])
 
   const fetchPrev = useCallback(async () => {
     if (!prevRef.current) return
+    const fetchId = ++requestRef.current
     setLoading(true)
     setError(null)
     try {
       const res = await prevRef.current()
+
+      if (cancelledRef.current || fetchId !== requestRef.current) return
+
       const normalized = res.records.map(normalizeTransaction)
       setTransactions(normalized)
 
@@ -104,14 +134,21 @@ export function useTransactionHistory({
       setHasNext(true)
       setHasPrev(res.records.length >= limit)
     } catch (err) {
+      if (cancelledRef.current || fetchId !== requestRef.current) return
       setError(toStellarError(err))
     } finally {
-      setLoading(false)
+      if (!cancelledRef.current && fetchId === requestRef.current) {
+        setLoading(false)
+      }
     }
   }, [limit])
 
   useEffect(() => {
+    cancelledRef.current = false
     fetchTransactions()
+    return () => {
+      cancelledRef.current = true
+    }
   }, [fetchTransactions])
 
   return {
