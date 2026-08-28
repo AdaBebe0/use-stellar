@@ -50,6 +50,7 @@ jest.mock("../context/StellarProvider", () => {
       },
       wallet: mockWalletState,
       setWallet: mockSetWallet,
+      queryStore: { invalidate: jest.fn() },
     }),
   }
 })
@@ -79,7 +80,7 @@ describe("useSendPayment - Payment Flow", () => {
     // `jest.requireActual` too — so pulling TransactionBuilder/Networks/
     // Operation off it yielded undefined and `Networks.TESTNET` threw.
     // Build exactly what useSendPayment imports instead.
-    const mockTx = { toXDR: () => "unsigned_xdr" }
+    const mockTx = { toXDR: () => "unsigned_xdr", hash: () => Buffer.alloc(32) }
     const mockSignedTx = { toXDR: () => "signed_xdr" }
 
     // `fromXDR` is a static on TransactionBuilder, not an instance method.
@@ -118,8 +119,10 @@ describe("useSendPayment - Payment Flow", () => {
       loadAccount: jest.fn().mockResolvedValue({
         sequenceNumber: () => "123",
       }),
+      fetchBaseFee: jest.fn().mockResolvedValue(100),
       submitTransaction: jest.fn().mockResolvedValue({
         hash: "tx_hash_123",
+        successful: true,
       }),
     })
 
@@ -156,6 +159,7 @@ describe("useSendPayment - Payment Flow", () => {
       loadAccount: jest.fn().mockResolvedValue({
         sequenceNumber: () => "123",
       }),
+      fetchBaseFee: jest.fn().mockResolvedValue(100),
       submitTransaction: jest.fn().mockRejectedValue(new Error("Submission failed")),
     })
 
