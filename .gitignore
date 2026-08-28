@@ -1,6 +1,7 @@
 node_modules/
 packages/*/pnpm-lock.yaml
 dist/
+.next/
 .env
 .env.local
 *.tsbuildinfo

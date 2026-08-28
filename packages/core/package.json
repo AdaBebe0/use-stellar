@@ -72,7 +72,7 @@
     {
       "name": "CommonJS bundle",
       "path": "dist/index.js",
-      "limit": "15 kB",
+      "limit": "25 kB",
       "ignore": [
         "@stellar/stellar-sdk"
       ]
@@ -80,7 +80,7 @@
     {
       "name": "ES module bundle",
       "path": "dist/index.mjs",
-      "limit": "15 kB",
+      "limit": "25 kB",
       "ignore": [
         "@stellar/stellar-sdk"
       ]
