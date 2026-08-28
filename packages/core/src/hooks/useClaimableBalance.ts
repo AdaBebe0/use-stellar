@@ -25,13 +25,20 @@ export function useClaimableBalance({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<StellarError | null>(null)
 
-  // Monotonic id used to ignore stale responses (e.g. when the address/network
-  // changes mid-flight, or the component unmounts before a fetch resolves).
+  // Monotonic id used to ignore superseded responses (e.g. when the
+  // address/network changes mid-flight). This is distinct from unmount
+  // cancellation below — a superseded fetch is discarded because a newer
+  // fetch owns the state, while a cancelled fetch is discarded because
+  // there is no component left to update.
   const requestRef = useRef(0)
+  // Set only by the effect cleanup on unmount. Reset at the top of the
+  // effect so it doesn't leak across re-runs.
+  const cancelledRef = useRef(false)
 
   const fetchBalances = useCallback(async () => {
     if (!resolvedAddress) {
       setBalances([])
+      setLoading(false)
       return
     }
 
@@ -43,7 +50,7 @@ export function useClaimableBalance({
       const server = getHorizonServer(network)
       const result = await server.claimableBalances().claimant(resolvedAddress).call()
 
-      if (fetchId !== requestRef.current) return
+      if (cancelledRef.current || fetchId !== requestRef.current) return
 
       const parsed: ClaimableBalance[] = result.records.map(record => ({
         id: record.id,
@@ -58,7 +65,7 @@ export function useClaimableBalance({
 
       setBalances(parsed)
     } catch (err) {
-      if (fetchId !== requestRef.current) return
+      if (cancelledRef.current || fetchId !== requestRef.current) return
       const stellarError = toStellarError(err)
       // A 404 means the account has no claimable balances — treat as empty
       if (stellarError.code === "ACCOUNT_NOT_FOUND") {
@@ -68,16 +75,17 @@ export function useClaimableBalance({
         setError(stellarError)
       }
     } finally {
-      if (fetchId === requestRef.current) {
+      if (!cancelledRef.current && fetchId === requestRef.current) {
         setLoading(false)
       }
     }
   }, [resolvedAddress, network])
 
   useEffect(() => {
+    cancelledRef.current = false
     fetchBalances()
     return () => {
-      requestRef.current = -1
+      cancelledRef.current = true
     }
   }, [fetchBalances])
 

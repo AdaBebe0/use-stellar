@@ -309,5 +309,32 @@ describe("useBalance", () => {
 
       expect(result.current.balance).toBe("50.0000000")
     })
+
+    it("should settle loading to false when the address is cleared mid-flight (wallet disconnect)", async () => {
+      let resolveFirst: (value: typeof mockAccountData) => void = () => {}
+      const promise1 = new Promise(resolve => {
+        resolveFirst = resolve
+      })
+      mockServer.loadAccount.mockReturnValueOnce(promise1)
+
+      const { result, rerender } = renderHook(({ address }) => useBalance({ address }), {
+        initialProps: { address: TEST_ADDRESS as string | null },
+        wrapper,
+      })
+
+      expect(result.current.loading).toBe(true)
+
+      // Simulate a wallet disconnect mid-flight: address goes away.
+      rerender({ address: null })
+
+      expect(result.current.loading).toBe(false)
+
+      await act(async () => {
+        resolveFirst(mockAccountData)
+      })
+
+      // The superseded (now-addressless) fetch must not resurrect loading.
+      expect(result.current.loading).toBe(false)
+    })
   })
 })
