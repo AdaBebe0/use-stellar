@@ -744,3 +744,103 @@ export interface UseAnchorReturn {
   error: StellarError | null
   refetch: () => void
 }
+
+// ── Trades ─────────────────────────────────────────────────────────────────
+
+/**
+ * A normalized executed trade (fill) from Horizon's `/trades` endpoint.
+ *
+ * **Base/counter orientation:** when filtering by asset pair, `baseAsset` is
+ * always the asset you passed as `baseAsset` in the hook options, regardless
+ * of which orientation Horizon chose. The price rational is inverted when the
+ * pair is flipped. When no asset pair filter is provided, Horizon's canonical
+ * ordering is used unchanged.
+ */
+export interface NormalizedTrade {
+  /** Horizon trade ID. */
+  id: string
+  /** ISO-8601 timestamp of the ledger close that included this trade. */
+  ledgerCloseTime: string
+  /**
+   * Whether this was an orderbook trade or a liquidity-pool trade.
+   * Inspect this field if you need to filter by trade type.
+   */
+  tradeType: "orderbook" | "liquidity_pool"
+  /** Base asset in the normalized orientation. */
+  baseAsset: Asset
+  /** Amount of the base asset exchanged. */
+  baseAmount: string
+  /** Counter asset in the normalized orientation. */
+  counterAsset: Asset
+  /** Amount of the counter asset exchanged. */
+  counterAmount: string
+  /**
+   * Exact price as a rational number: `counterAmount / baseAmount`.
+   * No float arithmetic is used to produce this value.
+   */
+  priceR: { n: number; d: number }
+  /**
+   * Precise decimal string of the price, computed from the rational with
+   * integer arithmetic only (7 decimal places, trailing zeros stripped).
+   * Use for display only — do not feed back into arithmetic.
+   */
+  price: string
+  /**
+   * Which side the queried account was on, present only when the hook is
+   * filtering by account (`address` option). `"sell"` means the account
+   * was selling the base asset; `"buy"` means it was buying the base asset.
+   */
+  side?: "buy" | "sell"
+  /**
+   * Raw Horizon `base_is_seller` flag. `true` means the base-side account
+   * was the seller. Available in all filter modes.
+   */
+  baseIsSeller: boolean
+}
+
+/**
+ * Options for `useTrades`.
+ *
+ * At least one of `address` or `baseAsset` must be provided; the hook returns
+ * an empty list (and does not call Horizon) when neither is set.
+ */
+export interface UseTradesOptions {
+  /**
+   * Stellar account address. When provided, only trades involving this
+   * account are returned. Also used to derive `side` on each trade.
+   * Defaults to the connected wallet address if omitted.
+   */
+  address?: string | null
+  /**
+   * The asset you want on the base side of every returned trade.
+   * Must be paired with `counterAsset`. Together they filter to a specific
+   * orderbook and also define the normalized orientation rule.
+   */
+  baseAsset?: Asset | null
+  /**
+   * The asset you want on the counter side of every returned trade.
+   * Must be paired with `baseAsset`.
+   */
+  counterAsset?: Asset | null
+  /** Number of trades per page (default 10). */
+  limit?: number
+  /** Sort order (default `"desc"` — most recent first). */
+  order?: "asc" | "desc"
+}
+
+/** Return value from `useTrades`. */
+export interface UseTradesReturn {
+  trades: NormalizedTrade[]
+  loading: boolean
+  error: StellarError | null
+  /** `true` when a next page is available. */
+  hasNext: boolean
+  /** `true` when a previous page is available. */
+  hasPrev: boolean
+  /** Load the next page of trades. */
+  fetchNext: () => Promise<void>
+  /** Load the previous page of trades. */
+  fetchPrev: () => Promise<void>
+  /** Re-fetch the current page from Horizon. */
+  refetch: () => void
+}
