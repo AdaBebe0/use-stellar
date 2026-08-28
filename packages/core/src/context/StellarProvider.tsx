@@ -264,7 +264,19 @@ export function StellarProvider({
   // getting undefined URLs at request time.
   const resolvedNetworkConfig = useMemo(
     () => resolveNetworkConfig(network, networkConfigOverride),
-    [network, networkConfigOverride?.horizonUrl, networkConfigOverride?.sorobanUrl]
+    // Depend on the fields resolveNetworkConfig actually reads, not on the
+    // object: callers routinely pass an inline `networkConfig={{...}}`, and
+    // depending on its identity would re-resolve — and re-render every
+    // consumer — on every render. `networkPassphrase` belongs here too; it is
+    // read alongside the two URLs, so omitting it left a custom passphrase
+    // change stale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      network,
+      networkConfigOverride?.horizonUrl,
+      networkConfigOverride?.sorobanUrl,
+      networkConfigOverride?.networkPassphrase,
+    ]
   )
 
   const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET)
