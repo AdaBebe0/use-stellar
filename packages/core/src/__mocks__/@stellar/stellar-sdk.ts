@@ -1,6 +1,33 @@
 // Mock implementation of @stellar/stellar-sdk for testing
 // This prevents any real network requests during testing
 
+/**
+ * Minimal stub of the stellar-base Asset class.
+ * Only the interface needed by useTrades (forAssetPair) is implemented.
+ */
+export class Asset {
+  type: string
+  code: string
+  issuer: string
+
+  constructor(code: string, issuer: string) {
+    this.code = code
+    this.issuer = issuer
+    this.type =
+      code === "XLM" ? "native" : code.length <= 4 ? "credit_alphanum4" : "credit_alphanum12"
+  }
+
+  static native(): Asset {
+    const a = new Asset("XLM", "")
+    a.type = "native"
+    return a
+  }
+
+  isNative(): boolean {
+    return this.type === "native"
+  }
+}
+
 export const mockAccountRecord = {
   id: "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOACCWN",
   sequenceNumber: () => "1234567890123456",
@@ -136,6 +163,7 @@ export const Keypair = {
 
 // Export default mock
 const stellarSdkMock = {
+  Asset,
   Horizon,
   Keypair,
   mockHorizonServer,

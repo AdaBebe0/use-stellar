@@ -49,7 +49,7 @@ pnpm install
 ### Run the test suite
 
 ```bash
-npm run test
+pnpm test
 ```
 
 ### Run package smoke tests
@@ -57,16 +57,18 @@ npm run test
 Verify the published package imports and type resolution integrity locally:
 
 ```bash
-npm run test:package
+pnpm test:package
 ```
 
 ### Run the demo app
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open `http://localhost:3000`. The demo shows every hook with a live output panel.
+
+> **Note:** `pnpm dev` automatically builds the library first, so it works from a fresh clone with no prior build step required.
 
 To test hooks that require a wallet (like `useWallet` and `useSendPayment`), install the [Freighter browser extension](https://freighter.app) and set it to Stellar testnet.
 
@@ -86,8 +88,10 @@ To run checks manually at any time:
 
 ```bash
 pnpm format       # format all files
-pnpm lint         # run ESLint
-pnpm typecheck    # run TypeScript compiler check
+pnpm lint         # run ESLint (core + demo)
+pnpm typecheck    # run TypeScript compiler check (core + demo)
+pnpm build:lib    # build the library only (without the demo)
+pnpm build        # build the library and the demo
 ```
 
 ---
@@ -178,8 +182,8 @@ Wallets are added in `packages/core/src/hooks/useWallet.ts`.
 ## Pull request checklist
 
 - [ ] PR targets `dev`, not `main`
-- [ ] Tests pass (`npm run test`)
-- [ ] TypeScript compiles (`npm run typecheck`)
+- [ ] Tests pass (`pnpm test`)
+- [ ] TypeScript compiles (`pnpm typecheck`)
 - [ ] New hook is exported from `packages/core/src/index.ts`
 - [ ] New hook has a demo page
 - [ ] PR references the relevant issue (`Closes #N`)

@@ -46,6 +46,7 @@ jest.mock("../utils", () => ({
   ...jest.requireActual("../utils"),
   getHorizonServer: jest.fn(),
   isBrowser: () => true,
+  getHorizonServer: jest.fn(),
 }))
 
 // Mock the context to inject wallet state
@@ -75,6 +76,7 @@ jest.mock("../context/StellarProvider", () => {
       },
       wallet: mockWalletState,
       setWallet: mockSetWallet,
+      queryStore: { invalidate: jest.fn() },
     }),
   }
 })
@@ -101,14 +103,54 @@ describe("useSendPayment - Payment Flow", () => {
       walletName: "Freighter",
     }
 
+    // `moduleNameMapper` in jest.config.js redirects "@stellar/stellar-sdk" to
+    // the manual mock in src/__mocks__, and that redirect applies to
+    // `jest.requireActual` too — so pulling TransactionBuilder/Networks/
+    // Operation off it yielded undefined and `Networks.TESTNET` threw.
+    // Build exactly what useSendPayment imports instead.
+    const mockTx = { toXDR: () => "unsigned_xdr", hash: () => Buffer.alloc(32) }
+    const mockSignedTx = { toXDR: () => "signed_xdr" }
+
+    // `fromXDR` is a static on TransactionBuilder, not an instance method.
+    const TransactionBuilder = Object.assign(
+      function TransactionBuilder() {
+        const builder = {
+          addOperation: () => builder,
+          addMemo: () => builder,
+          setTimeout: () => builder,
+          build: () => mockTx,
+        }
+        return builder
+      },
+      { fromXDR: () => mockSignedTx }
+    )
+
+    const sdk = jest.requireMock("@stellar/stellar-sdk") as Record<string, unknown>
+    sdk.TransactionBuilder = TransactionBuilder
+    sdk.Networks = {
+      PUBLIC: "Public Global Stellar Network ; September 2015",
+      TESTNET: "Test SDF Network ; September 2015",
+    }
+    sdk.BASE_FEE = "100"
+    sdk.Operation = { payment: (opts: unknown) => opts }
+    sdk.Memo = { text: (value: string) => ({ type: "text", value }) }
+    sdk.Asset = Object.assign(
+      function Asset(code: string, issuer: string) {
+        return { code, issuer }
+      },
+      { native: () => ({ code: "XLM" }) }
+    )
+
     // Mock getHorizonServer and its methods
     const { getHorizonServer } = jest.requireMock("../utils") as { getHorizonServer: jest.Mock }
     getHorizonServer.mockReturnValue({
       loadAccount: mockLoadAccount.mockResolvedValue({
         sequenceNumber: () => "123",
       }),
+      fetchBaseFee: jest.fn().mockResolvedValue(100),
       submitTransaction: jest.fn().mockResolvedValue({
         hash: "tx_hash_123",
+        successful: true,
       }),
     })
 
@@ -125,6 +167,8 @@ describe("useSendPayment - Payment Flow", () => {
     })
 
     const paymentOpts = { to: "GDEST", amount: "10", asset: "XLM" as const }
+    // Inside act(), or the hook's state updates have not been flushed by the
+    // time the assertions below read `result.current`.
     await act(async () => {
       await result.current.send(paymentOpts)
     })
@@ -143,6 +187,7 @@ describe("useSendPayment - Payment Flow", () => {
       loadAccount: jest.fn().mockResolvedValue({
         sequenceNumber: () => "123",
       }),
+      fetchBaseFee: jest.fn().mockResolvedValue(100),
       submitTransaction: jest.fn().mockRejectedValue(new Error("Submission failed")),
     })
 
