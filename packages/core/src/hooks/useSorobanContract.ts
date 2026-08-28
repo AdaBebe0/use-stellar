@@ -5,40 +5,61 @@ import {
   xdr,
   scValToNative,
   TransactionBuilder,
-  Networks,
   BASE_FEE,
   Account,
 } from "@stellar/stellar-sdk"
 import { useStellarContext } from "../context/StellarProvider"
 import { toStellarError } from "../errors"
-import type { ContractCallOptions, StellarError } from "../types"
+import { useQuery, sorobanContractKey } from "../cache"
+import type { ContractCallOptions, ContractSpecLike, StellarError } from "../types"
 
-export interface UseSorobanContractReturn {
-  data: unknown | null
+/**
+ * The account simulations run as when no wallet is connected.
+ */
+export const ANONYMOUS_SIMULATION_SOURCE =
+  "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+
+export interface UseSorobanContractReturn<T = unknown> {
+  data: T | null
   loading: boolean
   error: StellarError | null
   refetch: () => void
 }
 
-function toScVal(arg: unknown): xdr.ScVal {
+function toScVal(arg: unknown, index: number): xdr.ScVal {
   if (arg instanceof xdr.ScVal) return arg
-  if (typeof arg === "string") return xdr.ScVal.scvString(arg)
   if (typeof arg === "boolean") return xdr.ScVal.scvBool(arg)
+  if (typeof arg === "string") {
+    throw new Error(
+      `Argument ${index} is a string, which could be Symbol, String, or Address. ` +
+        "Pass an xdr.ScVal so the type is explicit."
+    )
+  }
   if (typeof arg === "number") {
-    if (!Number.isInteger(arg))
-      throw new Error(`Non-integer numbers are not supported. Use a string representation instead.`)
-    return arg < 0
-      ? xdr.ScVal.scvI128(
-          new xdr.Int128Parts({
-            hi: xdr.Int64.fromString("-1"),
-            lo: xdr.Uint64.fromString(String(BigInt(arg) & BigInt("0xFFFFFFFFFFFFFFFF"))),
-          })
-        )
-      : xdr.ScVal.scvU64(xdr.Uint64.fromString(String(arg)))
+    throw new Error(
+      `Argument ${index} is a number, which could be u32, i32, u64, i64, u128, or i128. ` +
+        "Pass an xdr.ScVal so the type is explicit."
+    )
+  }
+  if (typeof arg === "bigint") {
+    throw new Error(
+      `Argument ${index} is a bigint, which could be u64, i64, u128, or i128. ` +
+        "Pass an xdr.ScVal so the width is explicit."
+    )
   }
   throw new Error(
-    `Unsupported argument type: ${typeof arg}. Pass an xdr.ScVal directly for complex types.`
+    `Argument ${index} has unsupported type ${typeof arg}. Pass an xdr.ScVal directly.`
   )
+}
+
+function describeArg(arg: unknown): string {
+  if (arg instanceof xdr.ScVal) return arg.toXDR("base64")
+  if (typeof arg === "bigint") return `${arg}n`
+  try {
+    return JSON.stringify(arg) ?? String(arg)
+  } catch {
+    return String(arg)
+  }
 }
 
 function isValidContractId(id: string): boolean {
@@ -99,13 +120,7 @@ export function useSorobanContract({
             `Invalid contract ID "${contractId}". Must be a C-prefixed 56-character Stellar address.`
           )
         )
-      )
-      setData(null)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
+      }
 
     try {
       const server = new SorobanRpc.Server(sorobanUrl, {
@@ -123,6 +138,7 @@ export function useSorobanContract({
 
       const contract = new Contract(contractId)
       const operation = contract.call(method, ...scArgs)
+      const simulationSource = new Account(source, "0")
 
       const sourceAccount = new Account(
         "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
@@ -143,21 +159,17 @@ export function useSorobanContract({
       if (SorobanRpc.Api.isSimulationError(simResult)) {
         throw new Error(`RPC simulation error: ${simResult.error}`)
       }
-
       if (!SorobanRpc.Api.isSimulationSuccess(simResult)) {
         throw new Error("Simulation did not return a successful result.")
       }
 
       const returnVal = simResult.result?.retval
-      if (!returnVal) {
-        setData(null)
-        return
-      }
+      if (!returnVal) return null as unknown as T
 
       try {
-        setData(scValToNative(returnVal))
+        return (spec ? spec.funcResToNative(method, returnVal) : scValToNative(returnVal)) as T
       } catch {
-        setData({ raw: returnVal.toXDR("base64") })
+        return { raw: returnVal.toXDR("base64") } as T
       }
     } catch (err) {
       setData(null)

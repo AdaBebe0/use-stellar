@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react"
 import React from "react"
-import { StellarProvider } from "./StellarProvider"
+import { StellarProvider, useStellarContext } from "./StellarProvider"
 import { useNetwork } from "../hooks/useNetwork"
 
 // ── Wrapper helpers ────────────────────────────────────────────────────────
@@ -215,5 +215,120 @@ describe("useStellarContext — outside provider", () => {
   it("throws a descriptive error when used outside StellarProvider", () => {
     // renderHook with no wrapper — no provider in the tree
     expect(() => renderHook(() => useNetwork())).toThrow(/No StellarProvider found/)
+  })
+})
+
+// ── Network passphrases ────────────────────────────────────────────────────
+
+describe("StellarProvider — network passphrases", () => {
+  it("resolves the testnet passphrase by default", () => {
+    const { result } = renderHook(() => useStellarContext(), { wrapper: makeWrapper({}) })
+
+    expect(result.current.networkConfig.networkPassphrase).toBe("Test SDF Network ; September 2015")
+  })
+
+  it("resolves the futurenet passphrase and endpoints", () => {
+    const { result } = renderHook(() => useStellarContext(), {
+      wrapper: makeWrapper({ network: "futurenet" }),
+    })
+
+    expect(result.current.networkConfig.networkPassphrase).toBe(
+      "Test SDF Future Network ; October 2022"
+    )
+    expect(result.current.networkConfig.horizonUrl).toBe("https://horizon-futurenet.stellar.org")
+  })
+
+  it("resolves a custom passphrase for a standalone node", () => {
+    const { result } = renderHook(() => useStellarContext(), {
+      wrapper: makeWrapper({
+        network: "custom",
+        networkConfig: {
+          horizonUrl: "http://localhost:8000",
+          sorobanUrl: "http://localhost:8000/soroban/rpc",
+          networkPassphrase: "Standalone Network ; February 2017",
+        },
+      }),
+    })
+
+    expect(result.current.networkConfig.networkPassphrase).toBe(
+      "Standalone Network ; February 2017"
+    )
+    expect(result.current.networkConfig.network).toBe("custom")
+  })
+
+  it("keeps a known network's passphrase when only the URLs are overridden", () => {
+    const { result } = renderHook(() => useStellarContext(), {
+      wrapper: makeWrapper({
+        network: "testnet",
+        networkConfig: {
+          horizonUrl: "https://horizon.my-node.com",
+          sorobanUrl: "https://rpc.my-node.com",
+        },
+      }),
+    })
+
+    expect(result.current.networkConfig.networkPassphrase).toBe("Test SDF Network ; September 2015")
+    expect(result.current.networkConfig.horizonUrl).toBe("https://horizon.my-node.com")
+  })
+
+  it("throws at render when a custom network has no passphrase", () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {})
+
+    expect(() =>
+      renderHook(() => useStellarContext(), {
+        wrapper: makeWrapper({
+          network: "custom",
+          networkConfig: {
+            horizonUrl: "http://localhost:8000",
+            sorobanUrl: "http://localhost:8000/soroban/rpc",
+          },
+        }),
+      })
+    ).toThrow(/networkPassphrase/)
+
+    consoleError.mockRestore()
+  })
+
+  it("throws at render when a custom network has no networkConfig at all", () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {})
+
+    expect(() =>
+      renderHook(() => useStellarContext(), {
+        wrapper: makeWrapper({ network: "custom" }),
+      })
+    ).toThrow(/requires a networkConfig/)
+
+    consoleError.mockRestore()
+  })
+})
+
+describe("StellarProvider — memoized context value", () => {
+  it("preserves the context value identity across rerenders with unchanged props", () => {
+    const { result, rerender } = renderHook(() => useStellarContext(), {
+      wrapper: makeWrapper({ network: "testnet" }),
+    })
+    const initialValue = result.current
+
+    rerender()
+
+    expect(result.current).toBe(initialValue)
+  })
+
+  it("changes the context value identity when the network changes", () => {
+    let network: "testnet" | "futurenet" = "testnet"
+    function NetworkWrapper({ children }: { children: React.ReactNode }) {
+      return <StellarProvider network={network}>{children}</StellarProvider>
+    }
+
+    const { result, rerender } = renderHook(() => useStellarContext(), {
+      wrapper: NetworkWrapper,
+    })
+    const initialValue = result.current
+
+    network = "futurenet"
+    rerender()
+
+    expect(result.current).not.toBe(initialValue)
+    expect(result.current.network).toBe("futurenet")
   })
 })
