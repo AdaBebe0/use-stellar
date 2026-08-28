@@ -144,7 +144,7 @@ describe("StellarProvider — invalid networkConfig", () => {
           networkConfig: { sorobanUrl: "https://rpc.my-node.example.com" },
         }),
       })
-    ).toThrow(/horizonUrl is required/)
+    ).toThrow(/`horizonUrl` is required/)
   })
 
   it("throws when sorobanUrl is missing", () => {
@@ -156,7 +156,7 @@ describe("StellarProvider — invalid networkConfig", () => {
           networkConfig: { horizonUrl: "https://horizon.my-node.example.com" },
         }),
       })
-    ).toThrow(/sorobanUrl is required/)
+    ).toThrow(/`sorobanUrl` is required/)
   })
 
   it("throws when horizonUrl is an empty string", () => {
@@ -170,7 +170,7 @@ describe("StellarProvider — invalid networkConfig", () => {
           },
         }),
       })
-    ).toThrow(/horizonUrl is required/)
+    ).toThrow(/`horizonUrl` is required/)
   })
 
   it("throws when sorobanUrl is a blank string", () => {
@@ -184,7 +184,7 @@ describe("StellarProvider — invalid networkConfig", () => {
           },
         }),
       })
-    ).toThrow(/sorobanUrl is required/)
+    ).toThrow(/`sorobanUrl` is required/)
   })
 
   it("error message includes a usage hint", () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   SorobanRpc,
   Contract,
@@ -45,12 +45,41 @@ function isValidContractId(id: string): boolean {
   return typeof id === "string" && /^C[A-Z2-7]{55}$/.test(id)
 }
 
+/**
+ * Module-level so an omitted `args` has a stable identity across renders. A
+ * `= []` default allocates a fresh array every render, which would change the
+ * `callContract` identity every render and re-fire the effect forever.
+ */
+const EMPTY_ARGS: unknown[] = []
+
+/**
+ * Holds `args` steady while its contents are unchanged, so callers can pass an
+ * inline array literal without driving an render loop.
+ *
+ * Compares by identity per element: primitives (the common case — addresses,
+ * amounts, method arguments) settle immediately. Callers passing freshly
+ * constructed `xdr.ScVal` objects inline should still memoize them, since a new
+ * object each render is genuinely a new value.
+ */
+function useStableArgs(args: unknown[]): unknown[] {
+  const ref = useRef(args)
+  const prev = ref.current
+  const unchanged = prev.length === args.length && prev.every((v, i) => Object.is(v, args[i]))
+  if (!unchanged) ref.current = args
+  return ref.current
+}
+
 export function useSorobanContract({
   contractId,
   method,
-  args = [],
+  args = EMPTY_ARGS,
 }: ContractCallOptions): UseSorobanContractReturn {
   const { networkConfig } = useStellarContext()
+  // Depend on the two fields actually used, not the object: a provider that
+  // rebuilds its context value each render would otherwise re-fire the effect
+  // on every render.
+  const { sorobanUrl, network } = networkConfig
+  const stableArgs = useStableArgs(args)
 
   const [data, setData] = useState<unknown | null>(null)
   const [loading, setLoading] = useState(false)
@@ -79,13 +108,13 @@ export function useSorobanContract({
     setError(null)
 
     try {
-      const server = new SorobanRpc.Server(networkConfig.sorobanUrl, {
-        allowHttp: networkConfig.sorobanUrl.startsWith("http://"),
+      const server = new SorobanRpc.Server(sorobanUrl, {
+        allowHttp: sorobanUrl.startsWith("http://"),
       })
 
       let scArgs: xdr.ScVal[]
       try {
-        scArgs = args.map(toScVal)
+        scArgs = stableArgs.map(toScVal)
       } catch (argErr) {
         throw new Error(
           `Argument conversion failed: ${argErr instanceof Error ? argErr.message : String(argErr)}`
@@ -99,8 +128,7 @@ export function useSorobanContract({
         "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
         "0"
       )
-      const networkPassphrase =
-        networkConfig.network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
+      const networkPassphrase = network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET
 
       const tx = new TransactionBuilder(sourceAccount, {
         fee: BASE_FEE,
@@ -137,7 +165,7 @@ export function useSorobanContract({
     } finally {
       setLoading(false)
     }
-  }, [contractId, method, args, networkConfig])
+  }, [contractId, method, stableArgs, sorobanUrl, network])
 
   useEffect(() => {
     callContract()

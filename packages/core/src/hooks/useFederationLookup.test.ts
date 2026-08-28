@@ -5,10 +5,13 @@ import { useFederationLookup } from "./useFederationLookup"
 
 const mockResolve = jest.fn()
 
+// `jest.mock` is hoisted above the `const` above it, so the factory must not
+// read `mockResolve` while evaluating — that hits the temporal dead zone.
+// Referencing it inside a wrapper defers the read until the call happens.
 jest.mock("@stellar/stellar-sdk", () => ({
   Federation: {
     Server: {
-      resolve: mockResolve,
+      resolve: (...args: unknown[]) => mockResolve(...args),
     },
   },
 }))

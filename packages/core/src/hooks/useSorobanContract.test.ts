@@ -21,8 +21,32 @@ jest.mock("../context/StellarProvider", () => ({
 let mockSimResult: unknown = null
 let mockSimError: Error | null = null
 
+// `moduleNameMapper` in jest.config.js redirects "@stellar/stellar-sdk" to the
+// manual mock in src/__mocks__, and that redirect applies to
+// `jest.requireActual` too — so spreading the "real" module here gave no
+// Contract, no xdr and no SorobanRpc, and the hook died on
+// "Contract is not a constructor". Declare exactly what the hook imports.
 jest.mock("@stellar/stellar-sdk", () => {
-  const actual = jest.requireActual("@stellar/stellar-sdk")
+  class MockScVal {
+    constructor(public readonly value: unknown) {}
+    toXDR() {
+      return "base64-encoded"
+    }
+  }
+
+  const xdr = {
+    ScVal: Object.assign(MockScVal, {
+      scvBool: (v: boolean) => new MockScVal(v),
+      scvString: (v: string) => new MockScVal(v),
+      scvU64: (v: unknown) => new MockScVal(v),
+      scvI128: (v: unknown) => new MockScVal(v),
+    }),
+    Int128Parts: class Int128Parts {
+      constructor(public readonly parts: unknown) {}
+    },
+    Int64: { fromString: (s: string) => s },
+    Uint64: { fromString: (s: string) => s },
+  }
 
   class MockServer {
     async simulateTransaction() {
@@ -31,20 +55,42 @@ jest.mock("@stellar/stellar-sdk", () => {
     }
   }
 
-  const MockSorobanRpc = {
-    ...actual.SorobanRpc,
-    Server: MockServer,
-    Api: {
-      ...actual.SorobanRpc?.Api,
-      isSimulationError: (r: unknown) =>
-        typeof r === "object" && r !== null && "error" in r && !("result" in r),
-      isSimulationSuccess: (r: unknown) => typeof r === "object" && r !== null && "result" in r,
-    },
-  }
-
   return {
-    ...actual,
-    SorobanRpc: MockSorobanRpc,
+    xdr,
+    scValToNative: (v: MockScVal) => v.value,
+    Contract: class Contract {
+      constructor(public readonly id: string) {}
+      call() {
+        return { type: "invokeHostFunction" }
+      }
+    },
+    Account: class Account {
+      constructor(
+        public readonly id: string,
+        public readonly sequence: string
+      ) {}
+    },
+    Networks: {
+      PUBLIC: "Public Global Stellar Network ; September 2015",
+      TESTNET: "Test SDF Network ; September 2015",
+    },
+    BASE_FEE: "100",
+    TransactionBuilder: function TransactionBuilder() {
+      const builder = {
+        addOperation: () => builder,
+        setTimeout: () => builder,
+        build: () => ({ toXDR: () => "unsigned_xdr" }),
+      }
+      return builder
+    },
+    SorobanRpc: {
+      Server: MockServer,
+      Api: {
+        isSimulationError: (r: unknown) =>
+          typeof r === "object" && r !== null && "error" in r && !("result" in r),
+        isSimulationSuccess: (r: unknown) => typeof r === "object" && r !== null && "result" in r,
+      },
+    },
   }
 })
 
@@ -99,7 +145,9 @@ describe("useSorobanContract — errors", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 5000 })
 
-    expect(result.current.error).toMatch(/Invalid contract ID/)
+    // `error` is a StellarError, not a string. "Invalid contract ID …" matches
+    // no classifier, so toStellarError falls through to UNKNOWN and keeps it.
+    expect(result.current.error?.message).toMatch(/Invalid contract ID/)
     expect(result.current.data).toBeNull()
   })
 
@@ -112,7 +160,7 @@ describe("useSorobanContract — errors", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 5000 })
 
-    expect(result.current.error).toMatch(/RPC simulation error/)
+    expect(result.current.error?.message).toMatch(/RPC simulation error/)
     expect(result.current.data).toBeNull()
   })
 
@@ -125,7 +173,9 @@ describe("useSorobanContract — errors", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 5000 })
 
-    expect(result.current.error).toBe("Network error")
+    // toStellarError classifies "Network error" as NETWORK_ERROR and swaps in
+    // the standard copy, so the code is what identifies it — not the message.
+    expect(result.current.error?.code).toBe("NETWORK_ERROR")
     expect(result.current.data).toBeNull()
   })
 
