@@ -70,7 +70,8 @@ export function useSendPayment(): UseSendPaymentReturn {
 
       // Check for network mismatch
       if (wallet.walletNetwork && wallet.network !== wallet.walletNetwork) {
-        throw new Error(
+        throw createStellarError(
+          "WRONG_NETWORK",
           `Network mismatch: Provider is on ${wallet.network} but wallet is on ${wallet.walletNetwork}. ` +
             `Switch your wallet to ${wallet.network} or call refreshWalletNetwork() to update.`
         )

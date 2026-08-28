@@ -33,12 +33,9 @@ export function getNetworkConfig(network: StellarNetwork): NetworkConfig {
  * the only form that works for a custom network, and it honours a custom
  * `horizonUrl`.
  */
-export function getHorizonServer(network: StellarNetwork | NetworkConfig): Horizon.Server {
-  const horizonUrl =
-    typeof network === "string" ? getNetworkConfig(network).horizonUrl : network.horizonUrl
-
-  return new Horizon.Server(horizonUrl, {
-    allowHttp: horizonUrl.startsWith("http://"),
+export function getHorizonServer(config: NetworkConfig): Horizon.Server {
+  return new Horizon.Server(config.horizonUrl, {
+    allowHttp: config.horizonUrl.startsWith("http://"),
   })
 }
 

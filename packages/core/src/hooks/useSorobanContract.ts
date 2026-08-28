@@ -8,7 +8,7 @@ import {
   Account,
 } from "@stellar/stellar-sdk"
 import { useStellarContext } from "../context/StellarProvider"
-import { toStellarError } from "../errors"
+import { createStellarError, toStellarError } from "../errors"
 import { useQuery, sorobanContractKey } from "../cache"
 import type { ContractCallOptions, ContractSpecLike, StellarError } from "../types"
 
@@ -159,10 +159,13 @@ export function useSorobanContract<T = unknown>({
       const simResult = await server.simulateTransaction(tx)
 
       if (SorobanRpc.Api.isSimulationError(simResult)) {
-        throw new Error(`RPC simulation error: ${simResult.error}`)
+        throw createStellarError("SIMULATION_FAILED", `RPC simulation error: ${simResult.error}`)
       }
       if (!SorobanRpc.Api.isSimulationSuccess(simResult)) {
-        throw new Error("Simulation did not return a successful result.")
+        throw createStellarError(
+          "SIMULATION_FAILED",
+          "Simulation did not return a successful result."
+        )
       }
 
       const returnVal = simResult.result?.retval
