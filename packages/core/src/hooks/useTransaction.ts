@@ -38,7 +38,21 @@ export function useTransaction({
   const [error, setError] = useState<StellarError | null>(null)
   const transactionRef = useRef<TransactionResult | null>(null)
 
-  transactionRef.current = transaction
+  // Refs must not be written during render (unsafe under StrictMode and
+  // concurrent rendering); keep transactionRef in sync via an effect instead.
+  useEffect(() => {
+    transactionRef.current = transaction
+  }, [transaction])
+
+  // Monotonic id used to ignore superseded responses (e.g. when `hash`
+  // changes mid-flight). Distinct from unmount cancellation below — a
+  // superseded fetch is discarded because a newer fetch owns the state,
+  // while a cancelled fetch is discarded because there is no component left
+  // to update.
+  const requestRef = useRef(0)
+  // Set only by the effect cleanup on unmount. Reset at the top of the
+  // effect so it doesn't leak across re-runs (e.g. every watch poll).
+  const cancelledRef = useRef(false)
 
   const fetchTransaction = useCallback(async () => {
     if (!hash) {
@@ -48,12 +62,15 @@ export function useTransaction({
       return
     }
 
+    const fetchId = ++requestRef.current
     setLoading(true)
     setError(null)
 
     try {
       const server = getHorizonServer(network)
       const raw = await server.transactions().transaction(hash).call()
+
+      if (cancelledRef.current || fetchId !== requestRef.current) return
 
       const status: TransactionStatus = raw.successful ? "success" : "failed"
 
@@ -66,6 +83,8 @@ export function useTransaction({
         envelope: raw.envelope_xdr,
       })
     } catch (err: unknown) {
+      if (cancelledRef.current || fetchId !== requestRef.current) return
+
       // 404 means not found / still pending
       const is404 = (err as { response?: { status: number } })?.response?.status === 404
       if (is404) {
@@ -75,11 +94,14 @@ export function useTransaction({
         setError(toStellarError(err))
       }
     } finally {
-      setLoading(false)
+      if (!cancelledRef.current && fetchId === requestRef.current) {
+        setLoading(false)
+      }
     }
   }, [hash, network, watch])
 
   useEffect(() => {
+    cancelledRef.current = false
     fetchTransaction()
 
     const interval = watch
@@ -94,6 +116,7 @@ export function useTransaction({
       if (interval) {
         clearInterval(interval)
       }
+      cancelledRef.current = true
     }
   }, [fetchTransaction, watch])
 
