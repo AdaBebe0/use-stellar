@@ -89,7 +89,8 @@ export function usePayments({
       setHasPrev(!!cursor)
     } catch (err) {
       if (cancelledRef.current || fetchId !== requestRef.current) return
-      setPayments([])
+      // Stale-while-revalidate: a failed fetch keeps the last known-good
+      // payments in place and only surfaces the error.
       setError(toStellarError(err))
     } finally {
       if (!cancelledRef.current && fetchId === requestRef.current) {
@@ -118,7 +119,8 @@ export function usePayments({
       setHasPrev(true)
     } catch (err) {
       if (cancelledRef.current || fetchId !== requestRef.current) return
-      setPayments([])
+      // Stale-while-revalidate: a failed fetch keeps the last known-good
+      // payments in place and only surfaces the error.
       setError(toStellarError(err))
     } finally {
       if (!cancelledRef.current && fetchId === requestRef.current) {
@@ -147,7 +149,8 @@ export function usePayments({
       setHasPrev(res.records.length >= limit)
     } catch (err) {
       if (cancelledRef.current || fetchId !== requestRef.current) return
-      setPayments([])
+      // Stale-while-revalidate: a failed fetch keeps the last known-good
+      // payments in place and only surfaces the error.
       setError(toStellarError(err))
     } finally {
       if (!cancelledRef.current && fetchId === requestRef.current) {
@@ -155,6 +158,19 @@ export function usePayments({
       }
     }
   }, [resolvedAddress, limit])
+
+  // Clear stale data synchronously the moment the query changes (address or
+  // network), before the new fetch resolves — otherwise there's a window
+  // where the previous account's payments render under the new query.
+  // Refetches (including fetchNext/fetchPrev) must NOT hit this: they keep
+  // the old data in place until the new fetch settles, per
+  // stale-while-revalidate.
+  useEffect(() => {
+    setPayments([])
+    setHasNext(false)
+    setHasPrev(false)
+    setError(null)
+  }, [resolvedAddress, network])
 
   useEffect(() => {
     cancelledRef.current = false
@@ -164,10 +180,13 @@ export function usePayments({
     }
   }, [fetchPayments])
 
+  const isStale = error !== null && payments.length > 0
+
   return {
     payments,
     loading,
     error,
+    isStale,
     refetch: fetchPayments,
     fetchNext,
     fetchPrev,
