@@ -81,7 +81,7 @@ This project uses Husky to enforce code quality automatically.
 Before every commit — Prettier formats your staged files and ESLint checks
 them. If either fails your commit is blocked. Fix the errors and try again.
 
-Before every push — the SDK is built and all tests are run. If either fails
+Before every push — the SDK is built and the unit test suite is run. If either fails
 your push is blocked.
 
 To run checks manually at any time:
