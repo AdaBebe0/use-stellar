@@ -68,6 +68,8 @@ pnpm dev
 
 Open `http://localhost:3000`. The demo shows every hook with a live output panel.
 
+> **Note:** `pnpm dev` automatically builds the library first, so it works from a fresh clone with no prior build step required.
+
 To test hooks that require a wallet (like `useWallet` and `useSendPayment`), install the [Freighter browser extension](https://freighter.app) and set it to Stellar testnet.
 
 ---
@@ -89,6 +91,8 @@ your push is blocked:
 
 Note: tests are not run by the pre-push hook. Run `pnpm test` manually before
 pushing, or they will only be caught in CI.
+Before every push — the SDK is built and the unit test suite is run. If either fails
+your push is blocked.
 
 To run checks manually at any time:
 
@@ -97,6 +101,10 @@ pnpm format       # format all files
 pnpm lint         # run ESLint
 pnpm typecheck    # run TypeScript compiler check
 pnpm test         # run the test suite
+pnpm lint         # run ESLint (core + demo)
+pnpm typecheck    # run TypeScript compiler check (core + demo)
+pnpm build:lib    # build the library only (without the demo)
+pnpm build        # build the library and the demo
 ```
 
 ---

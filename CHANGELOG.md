@@ -32,3 +32,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - useAsset hook
 - useSorobanContract hook (read-only)
 - StellarProvider context
+## [Unreleased]
+
+### Added
+- Typed wallet adapter, payment, asset, trustline, and Soroban simulation error codes.
+- Wallet network mismatch detection now compares provider intent with the network reported by every adapter.
+- Custom Horizon URLs are honored by Horizon hooks, including local HTTP nodes.
+- `useContractEvents` hook — poll Soroban contract events with cursor-based pagination, topic filters, a bounded buffer, and a distinct `LEDGER_OUT_OF_RELENTION` error when a start ledger predates the RPC's retention window-
+- Custom network passphrase support — `StellarNetwork` now includes `"futurenet"` and `"custom"`, `NetworkConfig` carries `networkPassphrase`, and `CustomNetworkConfig` accepts one
+- `NETWORK_PASSPHRASES` and `getNetworkPassphrase()` exported for reading a network's passphrase
+- Fee strategy — `fee` and `feeMultiplier` options on `useSendPayment`, `useAddTrustline`, and `usePathPayment`, with `DEFAULT_FEE_MULTIPLIER` exported
+- New error codes: `DESTINATION_NOT_FOUND`, `SEQUENCE_MISMATCH , `FEE_TOO_LOW`, `LEDGER_OUT_OF_RELENTION`
+- Recorded Horizon error fixtures under `src/__tests__/fixtures/` for classification tests
