@@ -38,75 +38,12 @@ export function useTransaction({
   watch = false,
   staleTime,
 }: UseTransactionOptions): UseTransactionReturn {
-  const { network } = useStellarContext()
-
-  const [transaction, setTransaction] = useState<TransactionResult | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<StellarError | null>(null)
-  const transactionRef = useRef<TransactionResult | null>(null)
-
-  // Refs must not be written during render (unsafe under StrictMode and
-  // concurrent rendering); keep transactionRef in sync via an effect instead.
-  useEffect(() => {
-    transactionRef.current = transaction
-  }, [transaction])
-
-  // Monotonic id used to ignore superseded responses (e.g. when `hash`
-  // changes mid-flight). Distinct from unmount cancellation below — a
-  // superseded fetch is discarded because a newer fetch owns the state,
-  // while a cancelled fetch is discarded because there is no component left
-  // to update.
-  const requestRef = useRef(0)
-  // Set only by the effect cleanup on unmount. Reset at the top of the
-  // effect so it doesn't leak across re-runs (e.g. every watch poll).
-  const cancelledRef = useRef(false)
-
-  const fetchTransaction = useCallback(async () => {
-    if (!hash) {
-      setTransaction(null)
-      setError(null)
-      setLoading(false)
-      return
-    }
-
-    const fetchId = ++requestRef.current
-    setLoading(true)
-    setError(null)
   const { network, networkConfig, queryStore } = useStellarContext()
 
   const queryKey = hash
     ? transactionKey(networkConfig.horizonUrl, network, hash)
     : (["transaction", "disabled"] as const)
 
-      if (cancelledRef.current || fetchId !== requestRef.current) return
-
-      const status: TransactionStatus = raw.successful ? "success" : "failed"
-
-      setTransaction({
-        hash: raw.hash,
-        status,
-        ledger: Number(raw.ledger),
-        createdAt: raw.created_at,
-        fee: String(raw.fee_charged),
-        envelope: raw.envelope_xdr,
-      })
-    } catch (err: unknown) {
-      if (cancelledRef.current || fetchId !== requestRef.current) return
-
-      // 404 means not found / still pending
-      const is404 = (err as { response?: { status: number } })?.response?.status === 404
-      if (is404) {
-        setTransaction({ hash: hash!, status: watch ? "pending" : "not_found" })
-      } else {
-        setTransaction(null)
-        setError(toStellarError(err))
-      }
-    } finally {
-      if (!cancelledRef.current && fetchId === requestRef.current) {
-        setLoading(false)
-      }
-    }
-  }, [hash, network, watch])
   const {
     data: transaction,
     loading,
@@ -143,16 +80,21 @@ export function useTransaction({
     enabled: Boolean(hash),
   })
 
-  // Keep a stable ref so the interval doesn't close over a stale refetch.
+  // Keep stable refs so the interval doesn't close over a stale refetch or a
+  // stale transaction. Refs must not be written during render (unsafe under
+  // StrictMode and concurrent rendering), so sync them in effects instead.
   const refetchRef = useRef(refetch)
-  refetchRef.current = refetch
+  useEffect(() => {
+    refetchRef.current = refetch
+  }, [refetch])
+
   const transactionRef = useRef(transaction)
-  transactionRef.current = transaction
+  useEffect(() => {
+    transactionRef.current = transaction
+  }, [transaction])
 
   // Polling for watch mode: keep going until settled.
   useEffect(() => {
-    cancelledRef.current = false
-    fetchTransaction()
     if (!watch || !hash) return
 
     const id = setInterval(() => {
@@ -161,13 +103,6 @@ export function useTransaction({
       refetchRef.current()
     }, 3000)
 
-    return () => {
-      if (interval) {
-        clearInterval(interval)
-      }
-      cancelledRef.current = true
-    }
-  }, [fetchTransaction, watch])
     return () => clearInterval(id)
   }, [watch, hash])
 
