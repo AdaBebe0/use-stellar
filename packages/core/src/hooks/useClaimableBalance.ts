@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from "react"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer } from "../utils"
 import { toStellarError } from "../errors"
+import { useQuery, claimableBalanceKey } from "../cache"
 import type { ClaimableBalance, StellarError } from "../types"
 
 export interface UseClaimableBalanceOptions {
   address?: string | null // defaults to connected wallet address
+  /** Override the provider-level staleTime for this hook instance (ms). */
+  staleTime?: number
 }
 
 export interface UseClaimableBalanceReturn {
@@ -30,16 +32,23 @@ export interface UseClaimableBalanceReturn {
  * nothing. `balances` is only cleared when the query itself changes
  * (`address`), or when Horizon reports no claimable balances (a 404), since
  * that is a legitimately empty result rather than a transient failure.
+ * Fetches claimable balances for an address.
+ *
+ * Results are cached in the shared QueryStore and deduplicated.
+ *
+ * @example
+ * const { balances } = useClaimableBalance({ address: "G..." })
  */
 export function useClaimableBalance({
   address,
+  staleTime,
 }: UseClaimableBalanceOptions = {}): UseClaimableBalanceReturn {
-  const { network, wallet } = useStellarContext()
+  const { network, networkConfig, wallet, queryStore } = useStellarContext()
   const resolvedAddress = address ?? wallet.address
 
-  const [balances, setBalances] = useState<ClaimableBalance[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<StellarError | null>(null)
+  const queryKey = resolvedAddress
+    ? claimableBalanceKey(networkConfig.horizonUrl, network, resolvedAddress)
+    : (["claimableBalance", "disabled"] as const)
 
   // Monotonic id used to ignore superseded responses (e.g. when the
   // address/network changes mid-flight). This is distinct from unmount
@@ -96,9 +105,40 @@ export function useClaimableBalance({
     } finally {
       if (!cancelledRef.current && fetchId === requestRef.current) {
         setLoading(false)
+  const {
+    data,
+    loading,
+    error: rawError,
+    refetch,
+  } = useQuery<ClaimableBalance[]>({
+    queryKey,
+    queryFn: async () => {
+      const server = getHorizonServer(networkConfig)
+      try {
+        const result = await server.claimableBalances().claimant(resolvedAddress!).call()
+        return result.records.map(record => ({
+          id: record.id,
+          asset: record.asset,
+          amount: record.amount,
+          claimants: record.claimants.map(c => ({
+            destination: c.destination,
+            predicate: c.predicate as object,
+          })),
+          sponsor: record.sponsor,
+        }))
+      } catch (err) {
+        const stellarError = toStellarError(err)
+        // A 404 means the account has no claimable balances — treat as empty
+        if (stellarError?.code === "ACCOUNT_NOT_FOUND") {
+          return []
+        }
+        throw stellarError ?? err
       }
-    }
-  }, [resolvedAddress, network])
+    },
+    store: queryStore,
+    staleTime,
+    enabled: Boolean(resolvedAddress),
+  })
 
   // Clear stale data synchronously the moment the query changes (address),
   // before the new fetch resolves — otherwise there's a window where the
@@ -121,4 +161,7 @@ export function useClaimableBalance({
   const isStale = error !== null && balances.length > 0
 
   return { balances, loading, error, isStale, refetch: fetchBalances }
+  const error = rawError ? toStellarError(rawError) : null
+
+  return { balances: data ?? [], loading, error, refetch }
 }

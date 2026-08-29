@@ -1,18 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useStellarContext } from "../context/StellarProvider"
 import { getHorizonServer, parseHorizonBalance } from "../utils"
 import { toStellarError } from "../errors"
+import { useQuery, accountKey } from "../cache"
 import type { Asset, Balance, StellarError } from "../types"
-
-// Default polling interval (ms) used when `watch` is enabled without an explicit
-// `interval`.
-const DEFAULT_WATCH_INTERVAL = 10_000
 
 export interface UseBalanceOptions {
   address?: string | null // defaults to connected wallet address
   asset?: Asset // defaults to XLM
   watch?: boolean // auto re-fetch on an interval (default false)
   interval?: number // polling interval in ms when watch is true (default 10000)
+  /** Override the provider-level staleTime for this hook instance (ms). */
+  staleTime?: number
 }
 
 export interface UseBalanceReturn {
@@ -30,6 +29,10 @@ export interface UseBalanceReturn {
   refetch: () => void
 }
 
+// Default polling interval (ms) used when `watch` is enabled without an explicit
+// `interval`.
+const DEFAULT_WATCH_INTERVAL = 10_000
+
 /**
  * Fetches the XLM or asset balance for the connected wallet or any Stellar address.
  *
@@ -39,6 +42,8 @@ export interface UseBalanceReturn {
  * consumer can keep rendering the last known-good balance instead of nothing.
  * `balances` is only cleared when the query itself changes (`address` or the
  * network), since that data is about a different account.
+ * Results are cached in the shared QueryStore and deduplicated: two components
+ * calling useBalance for the same address issue exactly one network request.
  *
  * @param options - Configuration options
  * @param options.address - The Stellar address to fetch balances for. Defaults to the connected wallet.
@@ -46,6 +51,8 @@ export interface UseBalanceReturn {
  * @param options.watch - When true, re-fetches on an interval (default false).
  * @param options.interval - Polling interval in ms when `watch` is true (default 10000).
  * @returns `{ balance, balances, loading, error, lastUpdated, isStale, refetch }`
+ * @param options.staleTime - Override the provider-level staleTime for this hook.
+ * @returns `{ balance, balances, loading, error, lastUpdated, refetch }`
  *
  * @example
  * const { balance, loading, isStale } = useBalance({ asset: "XLM", watch: true, interval: 5000 })
@@ -55,14 +62,14 @@ export function useBalance({
   asset = "XLM",
   watch = false,
   interval = DEFAULT_WATCH_INTERVAL,
+  staleTime,
 }: UseBalanceOptions = {}): UseBalanceReturn {
-  const { network, wallet } = useStellarContext()
+  const { network, networkConfig, wallet, queryStore } = useStellarContext()
   const resolvedAddress = address ?? wallet.address
 
-  const [balances, setBalances] = useState<Balance[]>([])
-  const [loading, setLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [error, setError] = useState<StellarError | null>(null)
+  const queryKey = resolvedAddress
+    ? accountKey(networkConfig.horizonUrl, network, resolvedAddress)
+    : (["balance", "disabled"] as const)
 
   // Monotonic id used to ignore superseded responses (e.g. when the
   // address/network changes mid-flight). This is distinct from unmount
@@ -120,10 +127,37 @@ export function useBalance({
   useEffect(() => {
     cancelledRef.current = false
     fetchBalances()
+  const {
+    data: balances,
+    loading,
+    error: rawError,
+    updatedAt,
+    refetch,
+  } = useQuery<Balance[]>({
+    queryKey,
+    queryFn: async () => {
+      const server = getHorizonServer(networkConfig)
+      const account = await server.loadAccount(resolvedAddress!)
+      return account.balances.map(parseHorizonBalance)
+    },
+    store: queryStore,
+    staleTime,
+    enabled: Boolean(resolvedAddress),
+  })
 
-    // Guard against non-positive intervals that would busy-loop setInterval.
+  // Keep a stable ref so the interval doesn't close over a stale refetch.
+  const refetchRef = useRef(refetch)
+  refetchRef.current = refetch
+
+  // Polling: when watch is enabled, call refetch() on the interval. The cache
+  // bypasses staleTime on a refetch() call, so this always fetches fresh data.
+  useEffect(() => {
+    if (!watch || !resolvedAddress) return
+
     const ms = interval > 0 ? interval : DEFAULT_WATCH_INTERVAL
-    const id = watch ? setInterval(fetchBalances, ms) : null
+    const id = setInterval(() => refetchRef.current(), ms)
+    return () => clearInterval(id)
+  }, [watch, interval, resolvedAddress, network, networkConfig.horizonUrl])
 
     return () => {
       if (id) clearInterval(id)
@@ -133,8 +167,10 @@ export function useBalance({
       cancelledRef.current = true
     }
   }, [fetchBalances, watch, interval])
+  const error = rawError ? toStellarError(rawError) : null
+  const lastUpdated = updatedAt ? new Date(updatedAt) : null
 
-  const match = balances.find(b => {
+  const match = (balances ?? []).find(b => {
     if (asset === "XLM") return b.asset === "XLM"
     if (typeof asset === "object" && typeof b.asset === "object") {
       return b.asset.code === asset.code && b.asset.issuer === asset.issuer
@@ -146,11 +182,12 @@ export function useBalance({
 
   return {
     balance,
-    balances,
+    balances: balances ?? [],
     loading,
     error,
     lastUpdated,
     isStale,
     refetch: fetchBalances,
+    refetch,
   }
 }
