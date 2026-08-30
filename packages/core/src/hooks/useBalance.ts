@@ -105,6 +105,8 @@ export function useBalance({
       if (cancelledRef.current || fetchId !== requestRef.current) return
       // Stale-while-revalidate: a failed fetch keeps the last known-good
       // balances and lastUpdated in place, and only surfaces the error.
+      setBalances([])
+      setLastUpdated(null)
       setError(toStellarError(err))
     } finally {
       if (!cancelledRef.current && fetchId === requestRef.current) {
@@ -152,6 +154,8 @@ export function useBalance({
   // Polling: when watch is enabled, call refetch() on the interval. The cache
   // bypasses staleTime on a refetch() call, so this always fetches fresh data.
   useEffect(() => {
+    cancelledRef.current = false
+    fetchBalances()
     if (!watch || !resolvedAddress) return
 
     const ms = interval > 0 ? interval : DEFAULT_WATCH_INTERVAL

@@ -100,6 +100,11 @@ export function useClaimableBalance({
       } else {
         // Stale-while-revalidate: a transient failure keeps the last
         // known-good balances in place and only surfaces the error.
+      // A 404 means the account has no claimable balances — treat as empty
+      if (stellarError.code === "ACCOUNT_NOT_FOUND") {
+        setBalances([])
+      } else {
+        setBalances([])
         setError(stellarError)
       }
     } finally {
