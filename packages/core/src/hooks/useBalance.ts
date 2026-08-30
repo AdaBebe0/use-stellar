@@ -20,6 +20,12 @@ export interface UseBalanceReturn {
   loading: boolean
   error: StellarError | null
   lastUpdated: Date | null // timestamp of the last successful fetch
+  /**
+   * `true` when `error` is set but `balances` still holds data from a
+   * previous successful fetch (stale-while-revalidate). `false` once a
+   * fetch succeeds again, or when there is no data to be stale.
+   */
+  isStale: boolean
   refetch: () => void
 }
 
@@ -30,6 +36,12 @@ const DEFAULT_WATCH_INTERVAL = 10_000
 /**
  * Fetches the XLM or asset balance for the connected wallet or any Stellar address.
  *
+ * Follows a stale-while-revalidate contract: a failed fetch (e.g. a transient
+ * Horizon rate limit while `watch` is polling) never clears `balances` or
+ * `lastUpdated` — it only sets `error` and flips `isStale` to `true`, so the
+ * consumer can keep rendering the last known-good balance instead of nothing.
+ * `balances` is only cleared when the query itself changes (`address` or the
+ * network), since that data is about a different account.
  * Results are cached in the shared QueryStore and deduplicated: two components
  * calling useBalance for the same address issue exactly one network request.
  *
@@ -38,11 +50,12 @@ const DEFAULT_WATCH_INTERVAL = 10_000
  * @param options.asset - The asset to return in `balance`. Defaults to XLM.
  * @param options.watch - When true, re-fetches on an interval (default false).
  * @param options.interval - Polling interval in ms when `watch` is true (default 10000).
+ * @returns `{ balance, balances, loading, error, lastUpdated, isStale, refetch }`
  * @param options.staleTime - Override the provider-level staleTime for this hook.
  * @returns `{ balance, balances, loading, error, lastUpdated, refetch }`
  *
  * @example
- * const { balance, loading } = useBalance({ asset: "XLM", watch: true, interval: 5000 })
+ * const { balance, loading, isStale } = useBalance({ asset: "XLM", watch: true, interval: 5000 })
  */
 export function useBalance({
   address,
@@ -90,6 +103,8 @@ export function useBalance({
       setLastUpdated(new Date())
     } catch (err) {
       if (cancelledRef.current || fetchId !== requestRef.current) return
+      // Stale-while-revalidate: a failed fetch keeps the last known-good
+      // balances and lastUpdated in place, and only surfaces the error.
       setBalances([])
       setLastUpdated(null)
       setError(toStellarError(err))
@@ -99,6 +114,21 @@ export function useBalance({
       }
     }
   }, [resolvedAddress, network])
+
+  // Clear stale data synchronously the moment the query changes (address or
+  // network), before the new fetch resolves — otherwise there's a window
+  // where the previous account's balances render under the new query.
+  // Refetches (manual or via `watch`) must NOT hit this: they keep the old
+  // data in place until the new fetch settles, per stale-while-revalidate.
+  useEffect(() => {
+    setBalances([])
+    setLastUpdated(null)
+    setError(null)
+  }, [resolvedAddress, network])
+
+  useEffect(() => {
+    cancelledRef.current = false
+    fetchBalances()
   const {
     data: balances,
     loading,
@@ -152,6 +182,7 @@ export function useBalance({
     return false
   })
   const balance = match?.balance ?? null
+  const isStale = error !== null && balances.length > 0
 
   return {
     balance,
@@ -159,6 +190,8 @@ export function useBalance({
     loading,
     error,
     lastUpdated,
+    isStale,
+    refetch: fetchBalances,
     refetch,
   }
 }
