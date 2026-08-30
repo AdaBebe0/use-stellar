@@ -227,6 +227,86 @@ describe("usePayments", () => {
     expect(result.current.payments).toEqual([])
   })
 
+  describe("stale-while-revalidate", () => {
+    const paymentRecord = {
+      id: "100",
+      type: "payment",
+      transaction_hash: "tx_1",
+      created_at: "2026-06-25T18:00:00Z",
+      from: "G_SENDER",
+      to: address,
+      amount: "10.5",
+      asset_type: "native",
+    }
+
+    it("keeps payments and lastUpdated-equivalent state after a failing poll, and flags isStale", async () => {
+      mockCall.mockResolvedValueOnce({ records: [paymentRecord] })
+
+      const { result } = renderHook(() => usePayments({ address }), { wrapper })
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(result.current.payments).toHaveLength(1)
+      expect(result.current.isStale).toBe(false)
+
+      mockCall.mockRejectedValueOnce(new Error("Network Error"))
+
+      await act(async () => {
+        await result.current.refetch()
+      })
+
+      expect(result.current.payments).toHaveLength(1)
+      expect(result.current.error?.code).toBe("NETWORK_ERROR")
+      expect(result.current.isStale).toBe(true)
+    })
+
+    it("clears payments immediately when the address changes, before the new fetch resolves", async () => {
+      let resolveSecond: (value: { records: unknown[] }) => void = () => {}
+      const promise2 = new Promise<{ records: unknown[] }>(resolve => {
+        resolveSecond = resolve
+      })
+      mockCall.mockResolvedValueOnce({ records: [paymentRecord] }).mockReturnValueOnce(promise2)
+
+      const { result, rerender } = renderHook(({ addr }) => usePayments({ address: addr }), {
+        initialProps: { addr: address as string | null },
+        wrapper,
+      })
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(result.current.payments).toHaveLength(1)
+
+      rerender({ addr: "G_OTHER_TARGET" })
+
+      // Cleared synchronously — before the new fetch has resolved.
+      expect(result.current.payments).toEqual([])
+
+      await act(async () => {
+        resolveSecond({ records: [] })
+      })
+
+      expect(result.current.loading).toBe(false)
+    })
+
+    it("clears error and refreshes data on a subsequent successful refetch", async () => {
+      mockCall.mockRejectedValueOnce(new Error("Network Error"))
+      mockCall.mockResolvedValueOnce({ records: [paymentRecord] })
+
+      const { result } = renderHook(() => usePayments({ address }), { wrapper })
+
+      await waitFor(() => expect(result.current.error?.code).toBe("NETWORK_ERROR"))
+      expect(result.current.payments).toEqual([])
+
+      act(() => {
+        result.current.refetch()
+      })
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      expect(result.current.error).toBeNull()
+      expect(result.current.payments).toHaveLength(1)
+      expect(result.current.isStale).toBe(false)
+    })
+  })
+
   describe("race and unmount guards", () => {
     it("does not update state if unmounted before the fetch resolves", async () => {
       let resolveFetch: (value: { records: unknown[] }) => void = () => {}
