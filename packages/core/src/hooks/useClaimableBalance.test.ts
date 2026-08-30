@@ -238,6 +238,57 @@ describe("useClaimableBalance — refetch", () => {
   })
 })
 
+describe("useClaimableBalance — stale responses and unmounting", () => {
+  it("does not update state if unmounted before the fetch resolves", async () => {
+    let resolveFetch: (value: { records: unknown[] }) => void = () => {}
+    const promise = new Promise<{ records: unknown[] }>(resolve => {
+      resolveFetch = resolve
+    })
+    mockCall.mockReturnValue(promise)
+
+    const { result, unmount } = renderHook(
+      () => useClaimableBalance({ address: CLAIMABLE_ADDRESS }),
+      {
+        wrapper,
+      }
+    )
+
+    expect(result.current.loading).toBe(true)
+
+    unmount()
+
+    await act(async () => {
+      resolveFetch({ records: [MOCK_RECORD] })
+    })
+  })
+
+  it("settles loading to false when the address is cleared mid-flight (wallet disconnect)", async () => {
+    let resolveFetch: (value: { records: unknown[] }) => void = () => {}
+    const promise = new Promise<{ records: unknown[] }>(resolve => {
+      resolveFetch = resolve
+    })
+    mockCall.mockReturnValueOnce(promise)
+
+    const { result, rerender } = renderHook(({ address }) => useClaimableBalance({ address }), {
+      initialProps: { address: CLAIMABLE_ADDRESS as string | null },
+      wrapper,
+    })
+
+    expect(result.current.loading).toBe(true)
+
+    rerender({ address: null })
+
+    expect(result.current.loading).toBe(false)
+    expect(result.current.balances).toEqual([])
+
+    await act(async () => {
+      resolveFetch({ records: [MOCK_RECORD] })
+    })
+
+    expect(result.current.loading).toBe(false)
+  })
+})
+
 describe("useClaimableBalance — Horizon call shape", () => {
   it("calls claimableBalances().claimant(address).call()", async () => {
     mockCall.mockResolvedValue({ records: [] })

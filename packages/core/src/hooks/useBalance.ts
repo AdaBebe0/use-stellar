@@ -58,6 +58,47 @@ export function useBalance({
     ? accountKey(networkConfig.horizonUrl, network, resolvedAddress)
     : (["balance", "disabled"] as const)
 
+  // Monotonic id used to ignore superseded responses (e.g. when the
+  // address/network changes mid-flight). This is distinct from unmount
+  // cancellation below — a superseded fetch is discarded because a newer
+  // fetch owns the state, while a cancelled fetch is discarded because
+  // there is no component left to update.
+  const requestRef = useRef(0)
+  // Set only by the effect cleanup on unmount. Reset at the top of the
+  // effect so it doesn't leak across re-runs (e.g. every watch interval).
+  const cancelledRef = useRef(false)
+
+  const fetchBalances = useCallback(async () => {
+    if (!resolvedAddress) {
+      setBalances([])
+      setLoading(false)
+      return
+    }
+
+    const fetchId = ++requestRef.current
+    setLoading(true)
+    setError(null)
+
+    try {
+      const server = getHorizonServer(network)
+      const account = await server.loadAccount(resolvedAddress)
+
+      if (cancelledRef.current || fetchId !== requestRef.current) return
+
+      const parsed = account.balances.map(parseHorizonBalance)
+      setBalances(parsed)
+      setLastUpdated(new Date())
+    } catch (err) {
+      if (cancelledRef.current || fetchId !== requestRef.current) return
+      setBalances([])
+      setLastUpdated(null)
+      setError(toStellarError(err))
+    } finally {
+      if (!cancelledRef.current && fetchId === requestRef.current) {
+        setLoading(false)
+      }
+    }
+  }, [resolvedAddress, network])
   const {
     data: balances,
     loading,
@@ -83,6 +124,8 @@ export function useBalance({
   // Polling: when watch is enabled, call refetch() on the interval. The cache
   // bypasses staleTime on a refetch() call, so this always fetches fresh data.
   useEffect(() => {
+    cancelledRef.current = false
+    fetchBalances()
     if (!watch || !resolvedAddress) return
 
     const ms = interval > 0 ? interval : DEFAULT_WATCH_INTERVAL
@@ -90,6 +133,14 @@ export function useBalance({
     return () => clearInterval(id)
   }, [watch, interval, resolvedAddress, network, networkConfig.horizonUrl])
 
+    return () => {
+      if (id) clearInterval(id)
+      // Mark cancelled so a late response from this cycle can't update an
+      // unmounted component. Superseded (but still-mounted) responses are
+      // handled separately by requestRef above.
+      cancelledRef.current = true
+    }
+  }, [fetchBalances, watch, interval])
   const error = rawError ? toStellarError(rawError) : null
   const lastUpdated = updatedAt ? new Date(updatedAt) : null
 
